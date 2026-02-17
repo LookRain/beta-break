@@ -2,27 +2,47 @@ import React from 'react';
 import Gradient from '@/assets/icons/Gradient';
 import Logo from '@/assets/icons/Logo';
 import { Box } from '@/components/ui/box';
-import { ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
 
 import { Button, ButtonText } from '@/components/ui/button';
 import { useRouter } from 'expo-router';
-import { Icon } from '@/components/ui/icon';
+import { convexClient } from '@/lib/convexClient';
+import { makeFunctionReference } from 'convex/server';
+import { useMutation, useQuery } from 'convex/react';
 
-const FeatureCard = ({ iconSvg: IconSvg, name, desc }: any) => {
+const getCounter = makeFunctionReference<
+  'query',
+  Record<string, never>,
+  number
+>('counter:get');
+const incrementCounter = makeFunctionReference<
+  'mutation',
+  Record<string, never>,
+  number
+>('counter:increment');
+
+function ConvexCounterCard() {
+  const counterValue = useQuery(getCounter);
+  const increment = useMutation(incrementCounter);
+
   return (
-    <Box
-      className="flex-column md:flex-1 m-2 p-4 rounded-lg bg-background-0/40"
-      key={name}
-    >
-      <Box className="items-center flex flex-row">
-        <Icon as={IconSvg}/>
-        <Text className="font-medium ml-2 text-xl">{name}</Text>
-      </Box>
-      <Text className="mt-2">{desc}</Text>
+    <Box className="w-full max-w-[420px] mt-8 p-4 rounded-xl bg-background-0/50 gap-3">
+      <Text className="text-lg font-semibold">Convex test counter</Text>
+      <Text>
+        {counterValue === undefined ? 'Loading from Convex...' : `Count: ${counterValue}`}
+      </Text>
+      <Button
+        size="md"
+        className="bg-primary-500 px-6 py-2 rounded-full self-start"
+        onPress={() => {
+          void increment({});
+        }}
+      >
+        <ButtonText>Increment in Convex</ButtonText>
+      </Button>
     </Box>
   );
-};
+}
 
 export default function Home() {
   const router = useRouter();
@@ -56,6 +76,16 @@ export default function Home() {
           <Box className="flex-1 justify-center items-center h-[20px] w-[300px] lg:h-[160px] lg:w-[400px]">
             <Logo />
           </Box>
+          {convexClient ? (
+            <ConvexCounterCard />
+          ) : (
+            <Box className="w-full max-w-[420px] mt-8 p-4 rounded-xl bg-background-0/50">
+              <Text className="font-semibold">Convex not configured yet</Text>
+              <Text className="mt-1">
+                Add EXPO_PUBLIC_CONVEX_URL to your .env file and run convex:dev.
+              </Text>
+            </Box>
+          )}
         </Box>
       {/* </ScrollView> */}
     </Box>

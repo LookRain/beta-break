@@ -7,6 +7,9 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "convex:dev": "convex dev",
+    "convex:codegen": "convex codegen",
+    "convex:deploy": "convex deploy",
     "build": "expo export --platform web --output-dir dist",
     "build:preview": "expo export --platform web --output-dir dist",
     "test": "jest --watchAll"
@@ -15,6 +18,8 @@
     "preset": "jest-expo"
   },
   "dependencies": {
+    "@auth/core": "^0.37.0",
+    "@convex-dev/auth": "^0.0.90",
     "@expo/html-elements": "^0.12.5",
     "@expo/vector-icons": "^15.0.2",
     "@gluestack-ui/core": "^3.0.12",
@@ -24,11 +29,14 @@
     "@react-aria/utils": "^3.29.0",
     "@react-navigation/native": "^7.1.6",
     "babel-plugin-module-resolver": "^5.0.2",
+    "convex": "^1.31.7",
     "dom-helpers": "^5.2.1",
     "expo": "^54.0.7",
+    "expo-auth-session": "~7.0.10",
     "expo-font": "~14.0.8",
     "expo-linking": "~8.0.8",
     "expo-router": "~6.0.4",
+    "expo-secure-store": "~15.0.8",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-system-ui": "~6.0.7",

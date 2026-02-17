@@ -6,14 +6,14 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from '@react-navigation/native';
+import { ConvexProvider } from 'convex/react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { useColorScheme } from '@/components/useColorScheme';
 import { Slot, usePathname } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { Fab, FabIcon } from '@/components/ui/fab';
 import { MoonIcon, SunIcon } from '@/components/ui/icon';
+import { convexClient } from '@/lib/convexClient';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -28,7 +28,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  const [styleLoaded, setStyleLoaded] = useState(false);
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
@@ -45,8 +44,7 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const pathname = usePathname();
   const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
-
-  return (
+  const app = (
     <GluestackUIProvider mode={colorMode}>
       <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
         <Slot />
@@ -63,5 +61,11 @@ function RootLayoutNav() {
         )}
       </ThemeProvider>
     </GluestackUIProvider>
+  );
+
+  return convexClient ? (
+    <ConvexProvider client={convexClient}>{app}</ConvexProvider>
+  ) : (
+    app
   );
 }
