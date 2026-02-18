@@ -6,6 +6,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/convex/_generated/api";
 import { TrainingItemCard } from "@/components/training-item-card";
+import { PageHeader } from "@/components/page-header";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
@@ -78,14 +79,7 @@ export default function DiscoverScreen() {
       contentContainerStyle={{ ...screenPadding, gap: 16, paddingBottom: scrollBottomPadding }}
       style={{ backgroundColor: colors.bg }}
     >
-      <Box className="gap-1">
-        <Text className="text-3xl font-bold text-typography-900" style={{ letterSpacing: -0.3 }}>
-          Exercises
-        </Text>
-        <Text className="text-base text-typography-500">
-          Discover exercises
-        </Text>
-      </Box>
+      <PageHeader title="Exercises" subtitle="Discover exercises" />
 
       <Box style={{ position: "relative" }}>
         <Search

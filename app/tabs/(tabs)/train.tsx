@@ -19,6 +19,7 @@ import {
 import { Plus, CheckCircle2, Zap, ChevronDown, ChevronRight } from "lucide-react-native";
 import { SessionCard } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
+import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, screenPadding } from "@/lib/theme";
 
 type SessionOverrides = {
@@ -291,17 +292,12 @@ export default function TrainScreen() {
   return (
     <>
       <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustContentInsets={Platform.OS === "ios"}
         contentContainerStyle={{ ...screenPadding, gap: 20 }}
         style={{ backgroundColor: colors.bg }}
       >
-        <Box className="gap-1">
-          <Text className="text-3xl font-bold text-typography-900" style={{ letterSpacing: -0.3 }}>
-            Today's Training
-          </Text>
-          <Text className="text-base text-typography-500">
-            {toDayString(today)}
-          </Text>
-        </Box>
+        <PageHeader title="Today's Training" subtitle={toDayString(today)} />
 
         {todaySessions.length > 0 ? (
           <Box className="flex-row gap-3">

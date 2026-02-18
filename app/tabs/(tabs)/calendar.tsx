@@ -18,6 +18,7 @@ import {
 import { Plus, CheckCircle2, Trash2, ChevronRight, Clock } from "lucide-react-native";
 import { SessionCard } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
+import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, calendarTheme, screenPadding } from "@/lib/theme";
 import { HANG_CRIMP_TYPES, HANG_EDGE_MM_OPTIONS, HANG_EQUIPMENT_OPTIONS } from "@/lib/trainingItemFilters";
 
@@ -425,26 +426,26 @@ export default function CalendarScreen() {
           contentContainerStyle={{ ...screenPadding, gap: 16, paddingBottom: pageBottomPadding }}
           style={{ backgroundColor: colors.bg }}
         >
-        <Box className="flex-row items-center justify-between">
-          <Text className="text-3xl font-bold text-typography-900" style={{ letterSpacing: -0.3 }}>
-            Plan
-          </Text>
-          <Pressable
-            onPress={() => setScheduleSheetOpen(true)}
-            style={{
-              backgroundColor: colors.primary,
-              borderRadius: 12,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <Plus size={16} color="#fff" strokeWidth={2.5} />
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Add session</Text>
-          </Pressable>
-        </Box>
+        <PageHeader
+          title="Plan"
+          rightSlot={(
+            <Pressable
+              onPress={() => setScheduleSheetOpen(true)}
+              style={{
+                backgroundColor: colors.primary,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <Plus size={16} color="#fff" strokeWidth={2.5} />
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Add session</Text>
+            </Pressable>
+          )}
+        />
 
         <Box className="rounded-2xl overflow-hidden" style={{ ...cardShadow, backgroundColor: colors.bgCard, padding: 8 }}>
           <Calendar

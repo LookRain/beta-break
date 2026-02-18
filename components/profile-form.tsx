@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
+import { PageHeader } from "@/components/page-header";
 import { parseCommaSeparated, toCommaSeparated } from "@/lib/trainingItemFilters";
 import { cardShadow, colors, inputStyle, screenPadding } from "@/lib/theme";
 
@@ -61,6 +62,7 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
   const [showHistoryPublic, setShowHistoryPublic] = React.useState(initialValues?.showHistoryPublic ?? true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const stickyFooterBottomPadding = insets.bottom + (Platform.OS === "ios" ? 56 : 64);
   const scrollBottomPadding = Math.max(screenPadding.paddingBottom, insets.bottom + 120);
 
   const handleSubmit = async () => {
@@ -101,6 +103,11 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ ...screenPadding, gap: 14, paddingBottom: scrollBottomPadding }}
         >
+          <PageHeader
+            title="Profile"
+            subtitle="Set your details, climbing background, and privacy settings."
+          />
+
           <Box style={sectionCardStyle}>
             <Text className="text-base font-semibold text-typography-900">Identity</Text>
             <Text className={fieldLabelClassName}>Username</Text>
@@ -261,7 +268,7 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
             backgroundColor: colors.bgCard,
             paddingHorizontal: 16,
             paddingTop: 12,
-            paddingBottom: 20,
+            paddingBottom: stickyFooterBottomPadding,
             gap: 8,
           }}
         >

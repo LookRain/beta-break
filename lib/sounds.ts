@@ -1,4 +1,4 @@
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
 
 type ToneSegment = { frequency: number; durationMs: number; volume?: number };
 
@@ -99,7 +99,7 @@ const SOUND_DEFS: Record<string, ToneSegment[]> = {
 };
 
 class SoundManager {
-  private sounds = new Map<string, Audio.Sound>();
+  private sounds = new Map<string, AudioPlayer>();
   private initPromise: Promise<void> | null = null;
 
   async init() {
@@ -110,9 +110,9 @@ class SoundManager {
 
   private async _init() {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
       });
       console.log("[SoundManager] audio mode set");
     } catch (e) {
@@ -123,8 +123,8 @@ class SoundManager {
       Object.entries(SOUND_DEFS).map(async ([name, segments]) => {
         const uri = wavToDataUri(segments);
         console.log(`[SoundManager] loading ${name}, uri length=${uri.length}`);
-        const { sound } = await Audio.Sound.createAsync({ uri });
-        this.sounds.set(name, sound);
+        const player = createAudioPlayer({ uri });
+        this.sounds.set(name, player);
         console.log(`[SoundManager] loaded: ${name}`);
       }),
     );
@@ -146,8 +146,8 @@ class SoundManager {
       return;
     }
     try {
-      await sound.setPositionAsync(0);
-      await sound.playAsync();
+      await sound.seekTo(0);
+      sound.play();
       console.log(`[SoundManager] playing: ${name}`);
     } catch (e) {
       console.warn(`[SoundManager] play "${name}" error:`, e);
@@ -157,7 +157,7 @@ class SoundManager {
   async cleanup() {
     for (const sound of this.sounds.values()) {
       try {
-        await sound.unloadAsync();
+        sound.remove();
       } catch {
         /* ignore */
       }

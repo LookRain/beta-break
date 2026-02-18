@@ -1,71 +1,53 @@
 import React from 'react';
-import { Platform } from 'react-native';
-import { Tabs } from 'expo-router';
-import { useClientOnlyValue } from '@/components/useClientOnlyValue';
-import { Dumbbell, CalendarDays, Compass, User } from 'lucide-react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { NativeTabs, Icon, Label, VectorIcon } from 'expo-router/unstable-native-tabs';
 import { colors } from '@/lib/theme';
 
 export default function TabLayout() {
+  const tintColor = colors.primary;
+  const textColor = '#111827';
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: useClientOnlyValue(false, true),
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: '#9ca3af',
-        tabBarStyle: {
-          backgroundColor: '#ffffff',
-          borderTopColor: '#f3f4f6',
-          borderTopWidth: 1,
-          paddingTop: 4,
-          ...(Platform.OS === 'ios' ? { height: 88 } : {}),
-        },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
-          letterSpacing: 0.2,
-        },
-        headerStyle: {
-          backgroundColor: '#ffffff',
-          ...(Platform.OS === 'ios'
-            ? { shadowColor: 'transparent' }
-            : { elevation: 0 }),
-        },
-        headerTintColor: colors.text,
-        headerTitleStyle: {
-          fontWeight: '700',
-          fontSize: 17,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="train"
-        options={{
-          title: 'Train',
-          tabBarIcon: ({ color, size }) => <Dumbbell size={size ?? 22} color={color} strokeWidth={2} />,
-        }}
-      />
-      <Tabs.Screen
-        name="calendar"
-        options={{
-          title: 'Plan',
-          tabBarIcon: ({ color, size }) => <CalendarDays size={size ?? 22} color={color} strokeWidth={2} />,
-        }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
-          title: 'Exercises',
-          tabBarIcon: ({ color, size }) => <Compass size={size ?? 22} color={color} strokeWidth={2} />,
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <User size={size ?? 22} color={color} strokeWidth={2} />,
-        }}
-      />
-      <Tabs.Screen name="my-items" options={{ href: null }} />
-    </Tabs>
+    <NativeTabs tintColor={tintColor} labelStyle={{ color: textColor }}>
+      <NativeTabs.Trigger name="train">
+        <Label>Train</Label>
+        <Icon
+          src={{
+            default: <VectorIcon family={Ionicons} name="barbell-outline" />,
+            selected: <VectorIcon family={Ionicons} name="barbell" />,
+          }}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="calendar">
+        <Label>Plan</Label>
+        <Icon
+          src={{
+            default: <VectorIcon family={Ionicons} name="calendar-outline" />,
+            selected: <VectorIcon family={Ionicons} name="calendar" />,
+          }}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="discover">
+        <Label>Exercises</Label>
+        <Icon
+          src={{
+            default: <VectorIcon family={Ionicons} name="compass-outline" />,
+            selected: <VectorIcon family={Ionicons} name="compass" />,
+          }}
+        />
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="profile">
+        <Label>Profile</Label>
+        <Icon
+          src={{
+            default: <VectorIcon family={Ionicons} name="person-outline" />,
+            selected: <VectorIcon family={Ionicons} name="person" />,
+          }}
+        />
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
