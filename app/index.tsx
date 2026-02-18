@@ -1,93 +1,121 @@
-import React from 'react';
-import Gradient from '@/assets/icons/Gradient';
-import Logo from '@/assets/icons/Logo';
-import { Box } from '@/components/ui/box';
-import { Text } from '@/components/ui/text';
+import React from "react";
+import { Platform } from "react-native";
+import { useGlobalSearchParams, useRouter } from "expo-router";
+import { useConvexAuth } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
+import { makeRedirectUri } from "expo-auth-session";
+import { openAuthSessionAsync } from "expo-web-browser";
+import { Box } from "@/components/ui/box";
+import { Text } from "@/components/ui/text";
+import { Button, ButtonText } from "@/components/ui/button";
+import { Mountain } from "lucide-react-native";
+import { colors } from "@/lib/theme";
 
-import { Button, ButtonText } from '@/components/ui/button';
-import { useRouter } from 'expo-router';
-import { convexClient } from '@/lib/convexClient';
-import { makeFunctionReference } from 'convex/server';
-import { useMutation, useQuery } from 'convex/react';
-
-const getCounter = makeFunctionReference<
-  'query',
-  Record<string, never>,
-  number
->('counter:get');
-const incrementCounter = makeFunctionReference<
-  'mutation',
-  Record<string, never>,
-  number
->('counter:increment');
-
-function ConvexCounterCard() {
-  const counterValue = useQuery(getCounter);
-  const increment = useMutation(incrementCounter);
-
-  return (
-    <Box className="w-full max-w-[420px] mt-8 p-4 rounded-xl bg-background-0/50 gap-3">
-      <Text className="text-lg font-semibold">Convex test counter</Text>
-      <Text>
-        {counterValue === undefined ? 'Loading from Convex...' : `Count: ${counterValue}`}
-      </Text>
-      <Button
-        size="md"
-        className="bg-primary-500 px-6 py-2 rounded-full self-start"
-        onPress={() => {
-          void increment({});
-        }}
-      >
-        <ButtonText>Increment in Convex</ButtonText>
-      </Button>
-    </Box>
-  );
-}
+const redirectTo = makeRedirectUri({ scheme: "betabreak" });
 
 export default function Home() {
   const router = useRouter();
+  const params = useGlobalSearchParams<{ code?: string | string[] }>();
+  const { signIn, signOut } = useAuthActions();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const [authError, setAuthError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      router.replace("/tabs/train");
+    }
+  }, [isAuthenticated, router]);
+
+  React.useEffect(() => {
+    const codeParam = params.code;
+    const code = Array.isArray(codeParam) ? codeParam[0] : codeParam;
+    if (!code || isAuthenticated) {
+      return;
+    }
+
+    let cancelled = false;
+    const finishSignIn = async () => {
+      try {
+        await signIn("google", { code });
+      } catch (error) {
+        if (!cancelled) {
+          setAuthError(error instanceof Error ? error.message : "Could not complete Google sign-in.");
+        }
+      }
+    };
+
+    void finishSignIn();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, params.code, signIn]);
+
+  const handleGoogleSignIn = async () => {
+    setAuthError(null);
+    try {
+      const { redirect } = await signIn("google", { redirectTo });
+      if (Platform.OS === "web") {
+        return;
+      }
+      if (!redirect) {
+        throw new Error("Google redirect URL is missing");
+      }
+      const result = await openAuthSessionAsync(redirect.toString(), redirectTo);
+      if (result.type === "success") {
+        const code = new URL(result.url).searchParams.get("code");
+        if (code) {
+          await signIn("google", { code });
+        }
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Could not start Google sign-in.");
+    }
+  };
+
   return (
-    <Box className="flex-1 bg-background-300 h-[100vh]">
-        <Box className="absolute h-[500px] w-[500px] lg:w-[700px] lg:h-[700px]">
-          <Gradient />
+    <Box className="flex-1 items-center justify-center px-8" style={{ backgroundColor: "#ffffff" }}>
+      <Box className="items-center gap-3 mb-12">
+        <Box
+          className="items-center justify-center rounded-3xl mb-2"
+          style={{ width: 80, height: 80, backgroundColor: colors.primaryBg }}
+        >
+          <Mountain size={40} color={colors.primary} strokeWidth={2} />
         </Box>
-      {/* <ScrollView
-        style={{ height: '100%' }}
-        contentContainerStyle={{ flexGrow: 1 }}
-      > */}
-        <Box className="flex flex-1 items-center mx-5 lg:my-24 lg:mx-32 py-safe">
-          <Box className="gap-10 base:flex-col sm:flex-row justify-between sm:w-[80%] md:flex-1">
-            <Box className="bg-background-template py-2 px-6 rounded-full items-center flex-column md:flex-row md:self-start">
-              <Text className="text-white font-medium">
-                Get started by editing
-              </Text>
-              <Text className="text-white font-medium ml-2">./App.tsx or ./app/index.tsx (or whatever entry point you have)</Text>
-            </Box>
-            <Button
-              size="md"
-              className="bg-primary-500 px-6 py-2 rounded-full"
-              onPress={() => {
-                router.push('/tabs/tab1');
-              }}
-            >
-              <ButtonText>Explore Tab Navigation</ButtonText>
-            </Button>
+        <Text className="text-4xl font-bold text-typography-900" style={{ letterSpacing: -0.5 }}>
+          Beta Break
+        </Text>
+        <Text className="text-center text-typography-500 text-base" style={{ maxWidth: 260, lineHeight: 22 }}>
+          Plan your climbing training.{"\n"}Track progress. Get stronger.
+        </Text>
+      </Box>
+
+      <Box className="w-full gap-3" style={{ maxWidth: 320 }}>
+        {authError ? (
+          <Box className="rounded-xl p-3" style={{ backgroundColor: colors.errorBg }}>
+            <Text className="text-error-600 text-center text-sm">{authError}</Text>
           </Box>
-          <Box className="flex-1 justify-center items-center h-[20px] w-[300px] lg:h-[160px] lg:w-[400px]">
-            <Logo />
-          </Box>
-          {convexClient ? (
-            <ConvexCounterCard />
-          ) : (
-            <Box className="w-full max-w-[420px] mt-8 p-4 rounded-xl bg-background-0/50">
-              <Text className="font-semibold">Convex not configured yet</Text>
-              <Text className="mt-1">
-                Add EXPO_PUBLIC_CONVEX_URL to your .env file and run convex:dev.
-              </Text>
-            </Box>
-          )}
-        </Box>
-      {/* </ScrollView> */}
+        ) : null}
+        {isAuthenticated ? (
+          <Button
+            onPress={() => void signOut()}
+            size="lg"
+            className="rounded-xl"
+          >
+            <ButtonText className="font-semibold">Sign out</ButtonText>
+          </Button>
+        ) : (
+          <Button
+            onPress={() => void handleGoogleSignIn()}
+            size="lg"
+            className="rounded-xl"
+            disabled={isLoading}
+          >
+            <ButtonText className="font-semibold">
+              {isLoading ? "Checking session..." : "Sign in with Google"}
+            </ButtonText>
+          </Button>
+        )}
+      </Box>
     </Box>
   );
 }

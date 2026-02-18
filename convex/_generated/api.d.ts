@@ -8,7 +8,15 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as counter from "../counter.js";
+import type * as http from "../http.js";
+import type * as profiles from "../profiles.js";
+import type * as savedItems from "../savedItems.js";
+import type * as trainingItems from "../trainingItems.js";
+import type * as trainingLogs from "../trainingLogs.js";
+import type * as trainingSchedule from "../trainingSchedule.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +25,15 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   counter: typeof counter;
+  http: typeof http;
+  profiles: typeof profiles;
+  savedItems: typeof savedItems;
+  trainingItems: typeof trainingItems;
+  trainingLogs: typeof trainingLogs;
+  trainingSchedule: typeof trainingSchedule;
+  users: typeof users;
 }>;
 
 /**

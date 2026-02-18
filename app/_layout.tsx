@@ -1,26 +1,47 @@
 import { GluestackUIProvider } from '@/components/ui/gluestack-ui-provider';
 import '@/global.css';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import {
-  DarkTheme,
-  DefaultTheme,
-  ThemeProvider,
-} from '@react-navigation/native';
-import { ConvexProvider } from 'convex/react';
+import { DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
-import { Slot, usePathname } from 'expo-router';
-import { Fab, FabIcon } from '@/components/ui/fab';
-import { MoonIcon, SunIcon } from '@/components/ui/icon';
+import { useEffect } from 'react';
+import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { convexClient } from '@/lib/convexClient';
+import { colors } from '@/lib/theme';
 
 export {
-  // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
+
+const secureStorage = {
+  getItem: SecureStore.getItemAsync,
+  setItem: SecureStore.setItemAsync,
+  removeItem: SecureStore.deleteItemAsync,
+};
+
+const AppTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: '#ffffff',
+    card: '#ffffff',
+    text: colors.text,
+    border: '#f3f4f6',
+  },
+};
+
+const headerStyle = {
+  backgroundColor: '#ffffff',
+  ...(Platform.OS === 'ios'
+    ? { shadowColor: 'transparent' }
+    : { elevation: 0 }),
+};
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -28,7 +49,6 @@ export default function RootLayout() {
     ...FontAwesome.font,
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -42,29 +62,80 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const pathname = usePathname();
-  const [colorMode, setColorMode] = useState<'light' | 'dark'>('light');
   const app = (
-    <GluestackUIProvider mode={colorMode}>
-      <ThemeProvider value={colorMode === 'dark' ? DarkTheme : DefaultTheme}>
-        <Slot />
-        {pathname === '/' && (
-          <Fab
-            onPress={() =>
-              setColorMode(colorMode === 'dark' ? 'light' : 'dark')
-            }
-            className="m-6"
-            size="lg"
-          >
-            <FabIcon as={colorMode === 'dark' ? MoonIcon : SunIcon} />
-          </Fab>
-        )}
+    <GluestackUIProvider mode="light">
+      <ThemeProvider value={AppTheme}>
+        <Stack
+          screenOptions={{
+            headerBackTitle: 'Back',
+            gestureEnabled: true,
+            headerStyle,
+            headerTintColor: colors.primary,
+            headerTitleStyle: {
+              fontWeight: '700',
+              fontSize: 17,
+              color: colors.text,
+            },
+          }}
+        >
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="tabs" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="items/new"
+            options={{
+              title: 'New Exercise',
+              presentation: 'card',
+            }}
+          />
+          <Stack.Screen
+            name="items/[itemId]"
+            options={{
+              title: 'Edit Exercise',
+              presentation: 'card',
+            }}
+          />
+          <Stack.Screen
+            name="my-exercises"
+            options={{
+              title: 'My Exercises',
+              presentation: 'card',
+            }}
+          />
+          <Stack.Screen
+            name="timer"
+            options={{
+              title: '',
+              presentation: 'card',
+              headerStyle: {
+                backgroundColor: '#111827',
+              },
+              headerTintColor: '#ffffff',
+            }}
+          />
+          <Stack.Screen
+            name="plan-history"
+            options={{
+              title: 'Past Sessions',
+              presentation: 'card',
+            }}
+          />
+          <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+        </Stack>
       </ThemeProvider>
     </GluestackUIProvider>
   );
 
   return convexClient ? (
-    <ConvexProvider client={convexClient}>{app}</ConvexProvider>
+    <ConvexAuthProvider
+      client={convexClient}
+      storage={
+        Platform.OS === 'android' || Platform.OS === 'ios'
+          ? secureStorage
+          : undefined
+      }
+    >
+      {app}
+    </ConvexAuthProvider>
   ) : (
     app
   );
