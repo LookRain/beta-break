@@ -26,6 +26,7 @@ type TrainingItemCardItem = {
     reps?: number;
     sets?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   };
   publisher?: {
@@ -95,8 +96,8 @@ export function TrainingItemCard({
     additionalWeightPercent !== undefined
       ? `Additional Weight: +${additionalWeightPercent}% BW${additionalWeightKg !== undefined ? ` (+${additionalWeightKg}kg for you)` : ""}`
       : weightPercent !== undefined
-      ? `${weightPercent}% BW${personalizedWeightKg !== undefined ? ` (${personalizedWeightKg}kg for you)` : ""}`
-      : null;
+        ? `${weightPercent}% BW${personalizedWeightKg !== undefined ? ` (${personalizedWeightKg}kg for you)` : ""}`
+        : null;
   const legacyLoadLabel = weightPercent !== undefined ? `${weightPercent}kg` : null;
 
   return (
@@ -114,12 +115,7 @@ export function TrainingItemCard({
           ) : null}
         </Box>
         {onToggleSave ? (
-          <Button
-            variant="link"
-            size="sm"
-            onPress={onToggleSave}
-            className="p-1"
-          >
+          <Button variant="link" size="sm" onPress={onToggleSave} className="p-1">
             {isSaved ? (
               <BookmarkCheck size={20} color={colors.primary} strokeWidth={2} />
             ) : (
@@ -131,12 +127,18 @@ export function TrainingItemCard({
 
       <Box className="flex-row flex-wrap gap-1.5">
         <Box className="rounded-full px-2.5 py-0.5" style={{ backgroundColor: diffColors.bg }}>
-          <Text className="text-xs font-semibold" style={{ color: diffColors.text, textTransform: "capitalize" }}>
+          <Text
+            className="text-xs font-semibold"
+            style={{ color: diffColors.text, textTransform: "capitalize" }}
+          >
             {item.difficulty}
           </Text>
         </Box>
         {item.category ? (
-          <Box className="rounded-full px-2.5 py-0.5" style={{ backgroundColor: colors.borderLight }}>
+          <Box
+            className="rounded-full px-2.5 py-0.5"
+            style={{ backgroundColor: colors.borderLight }}
+          >
             <Text className="text-xs font-medium text-typography-600">{item.category}</Text>
           </Box>
         ) : null}
@@ -148,7 +150,11 @@ export function TrainingItemCard({
           </Box>
         ) : null}
         {item.tags.slice(0, 3).map((tag) => (
-          <Box key={tag} className="rounded-full px-2.5 py-0.5" style={{ backgroundColor: colors.borderLight }}>
+          <Box
+            key={tag}
+            className="rounded-full px-2.5 py-0.5"
+            style={{ backgroundColor: colors.borderLight }}
+          >
             <Text className="text-xs text-typography-500">{tag}</Text>
           </Box>
         ))}
@@ -156,8 +162,17 @@ export function TrainingItemCard({
 
       <Text className="text-sm text-typography-600">
         {item.variables.sets ?? "—"} sets x {item.variables.reps ?? "—"} reps
-        {usesBodyweightPercent ? (loadLabel ? ` @ ${loadLabel}` : "") : (legacyLoadLabel ? ` @ ${legacyLoadLabel}` : "")}
-        {item.variables.restSeconds ? ` · ${item.variables.restSeconds}s rest` : ""}
+        {usesBodyweightPercent
+          ? loadLabel
+            ? ` @ ${loadLabel}`
+            : ""
+          : legacyLoadLabel
+            ? ` @ ${legacyLoadLabel}`
+            : ""}
+        {item.variables.restSeconds ? ` · ${item.variables.restSeconds}s rep rest` : ""}
+        {item.variables.restBetweenSetsSeconds
+          ? ` · ${item.variables.restBetweenSetsSeconds}s set rest`
+          : ""}
       </Text>
       {item.trainingType === "hang" && item.hangDetails ? (
         <Text className="text-xs text-typography-500">
@@ -170,12 +185,10 @@ export function TrainingItemCard({
         </Text>
       ) : null}
       {publisherUsername ? (
-        <Text className="text-xs text-typography-500">
-          By @{publisherUsername}
-        </Text>
+        <Text className="text-xs text-typography-500">By @{publisherUsername}</Text>
       ) : null}
 
-      {(onPressPrimary || onPressSecondary) ? (
+      {onPressPrimary || onPressSecondary ? (
         <Box className="flex-row flex-wrap gap-2">
           {onPressPrimary && primaryLabel ? (
             <Button className="rounded-xl" onPress={onPressPrimary}>

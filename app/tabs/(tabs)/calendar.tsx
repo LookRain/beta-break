@@ -39,6 +39,7 @@ type SessionOverrides = {
   reps?: number;
   sets?: number;
   restSeconds?: number;
+  restBetweenSetsSeconds?: number;
   durationSeconds?: number;
 };
 
@@ -47,6 +48,7 @@ type SessionEditDraft = {
   reps: string;
   sets: string;
   restSeconds: string;
+  restBetweenSetsSeconds: string;
   durationSeconds: string;
   weightInputMode: "percent" | "absolute";
 };
@@ -139,6 +141,7 @@ function mergeVariables(base: SessionOverrides, overrides: SessionOverrides): Se
     reps: overrides.reps ?? base.reps,
     sets: overrides.sets ?? base.sets,
     restSeconds: overrides.restSeconds ?? base.restSeconds,
+    restBetweenSetsSeconds: overrides.restBetweenSetsSeconds ?? base.restBetweenSetsSeconds,
     durationSeconds: overrides.durationSeconds ?? base.durationSeconds,
   };
 }
@@ -192,6 +195,7 @@ function buildEditDraft(base: SessionOverrides, overrides: SessionOverrides): Se
     reps: merged.reps?.toString() ?? "",
     sets: merged.sets?.toString() ?? "",
     restSeconds: merged.restSeconds?.toString() ?? "",
+    restBetweenSetsSeconds: merged.restBetweenSetsSeconds?.toString() ?? "",
     durationSeconds: merged.durationSeconds?.toString() ?? "",
     weightInputMode: "percent",
   };
@@ -393,6 +397,7 @@ export default function CalendarScreen() {
         reps: parseOptionalNumber(draft.reps),
         sets: parseOptionalNumber(draft.sets),
         restSeconds: parseOptionalNumber(draft.restSeconds),
+        restBetweenSetsSeconds: parseOptionalNumber(draft.restBetweenSetsSeconds),
         durationSeconds: parseOptionalNumber(draft.durationSeconds),
       };
     },
@@ -1116,7 +1121,9 @@ export default function CalendarScreen() {
                     </Box>
                     <Box className="flex-row gap-2">
                       <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Rest (s)</Text>
+                        <Text className="text-xs text-typography-500 mb-1">
+                          Rest between reps (s)
+                        </Text>
                         <TextInput
                           placeholder="—"
                           placeholderTextColor={colors.textMuted}
@@ -1128,6 +1135,25 @@ export default function CalendarScreen() {
                           style={inputStyle}
                         />
                       </Box>
+                      <Box className="flex-1">
+                        <Text className="text-xs text-typography-500 mb-1">
+                          Rest between sets (s)
+                        </Text>
+                        <TextInput
+                          placeholder="Defaults to rep rest"
+                          placeholderTextColor={colors.textMuted}
+                          value={overrideDraft.restBetweenSetsSeconds}
+                          onChangeText={(value) =>
+                            updateSessionDraft(overrideSession._id, {
+                              restBetweenSetsSeconds: value,
+                            })
+                          }
+                          keyboardType="numeric"
+                          style={inputStyle}
+                        />
+                      </Box>
+                    </Box>
+                    <Box className="flex-row gap-2">
                       <Box className="flex-1">
                         <Text className="text-xs text-typography-500 mb-1">Duration (s)</Text>
                         <TextInput

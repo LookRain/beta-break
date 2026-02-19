@@ -17,12 +17,14 @@ function mergeVariables(
     sets?: number;
     reps?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   },
   overrides: {
     sets?: number;
     reps?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   },
 ) {
@@ -30,6 +32,7 @@ function mergeVariables(
     sets: overrides.sets ?? snapshot.sets,
     reps: overrides.reps ?? snapshot.reps,
     restSeconds: overrides.restSeconds ?? snapshot.restSeconds,
+    restBetweenSetsSeconds: overrides.restBetweenSetsSeconds ?? snapshot.restBetweenSetsSeconds,
     durationSeconds: overrides.durationSeconds ?? snapshot.durationSeconds,
   };
 }
@@ -78,6 +81,7 @@ export const startSessionExecution = mutationGeneric({
         sets: variables.sets,
         reps: variables.reps,
         restSeconds: variables.restSeconds,
+        restBetweenSetsSeconds: variables.restBetweenSetsSeconds,
         durationSeconds: variables.durationSeconds,
       },
       summary: {
@@ -127,9 +131,16 @@ export const appendExecutionStep = mutationGeneric({
 
     const summary = { ...log.summary };
     if (step.kind === "rep") {
+      const plannedReps = Math.max(1, log.planned.reps ?? 1);
+      const completedRepsForStep = step.completedReps ?? (step.repNumber ? 1 : plannedReps);
+      const didFinishSet =
+        (step.repNumber ?? completedRepsForStep) >= plannedReps ||
+        completedRepsForStep >= plannedReps;
       summary.totalRepDurationMs += step.actualDurationMs;
-      summary.completedSets = Math.max(summary.completedSets, step.setNumber);
-      summary.completedReps += step.completedReps ?? log.planned.reps ?? 0;
+      summary.completedReps += completedRepsForStep;
+      if (didFinishSet) {
+        summary.completedSets = Math.max(summary.completedSets, step.setNumber);
+      }
     } else if (step.kind === "rest") {
       summary.totalRestDurationMs += step.actualDurationMs;
     } else {

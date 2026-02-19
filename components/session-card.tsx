@@ -1,12 +1,7 @@
 import React from "react";
 import { Image, ImageSourcePropType, StyleSheet, View } from "react-native";
 import { useQuery } from "convex/react";
-import Svg, {
-  Defs,
-  LinearGradient as SvgLinearGradient,
-  Rect,
-  Stop,
-} from "react-native-svg";
+import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from "react-native-svg";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Repeat, Layers, Timer, Weight } from "lucide-react-native";
@@ -32,6 +27,7 @@ export type SessionSnapshot = {
     reps?: number;
     sets?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   };
 };
@@ -41,6 +37,7 @@ export type SessionVariables = {
   reps?: number;
   sets?: number;
   restSeconds?: number;
+  restBetweenSetsSeconds?: number;
   durationSeconds?: number;
 };
 
@@ -73,10 +70,7 @@ const trainingImages: Record<string, ImageSourcePropType> = {
 
 function resolveImage(snapshot: SessionSnapshot): ImageSourcePropType | null {
   if (snapshot.trainingType === "hang" && snapshot.hangDetails?.apparatus) {
-    return (
-      trainingImages[snapshot.hangDetails.apparatus] ??
-      trainingImages.fingerboard
-    );
+    return trainingImages[snapshot.hangDetails.apparatus] ?? trainingImages.fingerboard;
   }
   if (snapshot.trainingType && trainingImages[snapshot.trainingType]) {
     return trainingImages[snapshot.trainingType];
@@ -87,15 +81,9 @@ function resolveImage(snapshot: SessionSnapshot): ImageSourcePropType | null {
   return null;
 }
 
-export function SessionCard({
-  snapshot,
-  finalVariables,
-  statusBadge,
-  children,
-}: SessionCardProps) {
+export function SessionCard({ snapshot, finalVariables, statusBadge, children }: SessionCardProps) {
   const profile = useQuery(api.profiles.getMyProfile);
-  const accentColor =
-    typeAccentColors[snapshot.trainingType ?? ""] ?? colors.primary;
+  const accentColor = typeAccentColors[snapshot.trainingType ?? ""] ?? colors.primary;
   const bgImage = resolveImage(snapshot);
   const isBodyweightPercent = !!snapshot.trainingType;
   const bodyWeightKg = profile?.bodyWeightKg;
@@ -115,7 +103,8 @@ export function SessionCard({
     finalVariables.sets != null ||
     finalVariables.reps != null ||
     loadLabel != null ||
-    finalVariables.restSeconds != null;
+    finalVariables.restSeconds != null ||
+    finalVariables.restBetweenSetsSeconds != null;
 
   return (
     <View style={[styles.card, cardShadow]}>
@@ -132,26 +121,14 @@ export function SessionCard({
             pointerEvents="none"
           >
             <Defs>
-              <SvgLinearGradient
-                id="sessionCardLeftFeather"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="0%"
-              >
+              <SvgLinearGradient id="sessionCardLeftFeather" x1="0%" y1="0%" x2="100%" y2="0%">
                 <Stop offset="0%" stopColor={colors.bgCard} stopOpacity={1} />
                 <Stop offset="22%" stopColor={colors.bgCard} stopOpacity={0.88} />
                 <Stop offset="55%" stopColor={colors.bgCard} stopOpacity={0.45} />
                 <Stop offset="100%" stopColor={colors.bgCard} stopOpacity={0.12} />
               </SvgLinearGradient>
             </Defs>
-            <Rect
-              x="0"
-              y="0"
-              width="68%"
-              height="100%"
-              fill="url(#sessionCardLeftFeather)"
-            />
+            <Rect x="0" y="0" width="68%" height="100%" fill="url(#sessionCardLeftFeather)" />
           </Svg>
           <View style={styles.imageFadeTop} />
         </View>
@@ -186,16 +163,22 @@ export function SessionCard({
             {loadLabel ? (
               <View style={styles.statChip}>
                 <Weight size={11} color={colors.textSecondary} />
-                <Text className="text-xs font-medium text-typography-600">
-                  {loadLabel}
-                </Text>
+                <Text className="text-xs font-medium text-typography-600">{loadLabel}</Text>
               </View>
             ) : null}
             {finalVariables.restSeconds ? (
               <View style={styles.statChip}>
                 <Timer size={11} color={colors.textSecondary} />
                 <Text className="text-xs font-medium text-typography-600">
-                  {finalVariables.restSeconds}s rest
+                  {finalVariables.restSeconds}s rep rest
+                </Text>
+              </View>
+            ) : null}
+            {finalVariables.restBetweenSetsSeconds ? (
+              <View style={styles.statChip}>
+                <Timer size={11} color={colors.textSecondary} />
+                <Text className="text-xs font-medium text-typography-600">
+                  {finalVariables.restBetweenSetsSeconds}s set rest
                 </Text>
               </View>
             ) : null}

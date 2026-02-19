@@ -20,14 +20,29 @@ function toDayString(timestamp: number): string {
 }
 
 function mergeVariables(
-  base: { weight?: number; reps?: number; sets?: number; restSeconds?: number; durationSeconds?: number },
-  overrides: { weight?: number; reps?: number; sets?: number; restSeconds?: number; durationSeconds?: number },
+  base: {
+    weight?: number;
+    reps?: number;
+    sets?: number;
+    restSeconds?: number;
+    restBetweenSetsSeconds?: number;
+    durationSeconds?: number;
+  },
+  overrides: {
+    weight?: number;
+    reps?: number;
+    sets?: number;
+    restSeconds?: number;
+    restBetweenSetsSeconds?: number;
+    durationSeconds?: number;
+  },
 ) {
   return {
     weight: overrides.weight ?? base.weight,
     reps: overrides.reps ?? base.reps,
     sets: overrides.sets ?? base.sets,
     restSeconds: overrides.restSeconds ?? base.restSeconds,
+    restBetweenSetsSeconds: overrides.restBetweenSetsSeconds ?? base.restBetweenSetsSeconds,
     durationSeconds: overrides.durationSeconds ?? base.durationSeconds,
   };
 }
@@ -67,11 +82,16 @@ export default function PlanHistoryScreen() {
     >
       <Box className="gap-1">
         <Text className="text-2xl font-bold text-typography-900">Past Sessions</Text>
-        <Text className="text-sm text-typography-500">Your training history from the last year</Text>
+        <Text className="text-sm text-typography-500">
+          Your training history from the last year
+        </Text>
       </Box>
 
       {pastSessions.length === 0 ? (
-        <Box className="rounded-2xl p-6 items-center" style={{ ...cardShadow, backgroundColor: colors.bgCard }}>
+        <Box
+          className="rounded-2xl p-6 items-center"
+          style={{ ...cardShadow, backgroundColor: colors.bgCard }}
+        >
           <Text className="text-typography-500">No past sessions yet.</Text>
         </Box>
       ) : null}
@@ -88,14 +108,21 @@ export default function PlanHistoryScreen() {
             statusBadge={
               <Box className="flex-row items-center gap-1.5">
                 {isImpromptu ? (
-                  <Box className="rounded-full px-2.5 py-1" style={{ backgroundColor: colors.accentBg }}>
-                    <Text className="text-xs font-semibold" style={{ color: colors.accent }}>Impromptu</Text>
+                  <Box
+                    className="rounded-full px-2.5 py-1"
+                    style={{ backgroundColor: colors.accentBg }}
+                  >
+                    <Text className="text-xs font-semibold" style={{ color: colors.accent }}>
+                      Impromptu
+                    </Text>
                   </Box>
                 ) : null}
                 {isCompleted ? (
                   <Box className="flex-row items-center gap-1">
                     <CheckCircle2 size={14} color={colors.success} strokeWidth={2.5} />
-                    <Text className="text-xs font-semibold" style={{ color: colors.success }}>Completed</Text>
+                    <Text className="text-xs font-semibold" style={{ color: colors.success }}>
+                      Completed
+                    </Text>
                   </Box>
                 ) : (
                   <Box className="flex-row items-center gap-1">
@@ -108,7 +135,9 @@ export default function PlanHistoryScreen() {
           >
             {isImpromptu ? (
               <Text className="text-sm text-typography-500">
-                {session.completedAt ? `Completed ${toDayString(session.completedAt)}` : "Impromptu session"}
+                {session.completedAt
+                  ? `Completed ${toDayString(session.completedAt)}`
+                  : "Impromptu session"}
               </Text>
             ) : (
               <Text className="text-sm text-typography-500">
