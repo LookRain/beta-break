@@ -21,6 +21,7 @@ import { soundManager } from "@/lib/sounds";
 import { colors } from "@/lib/theme";
 
 type TimerPhase = "prep" | "rep" | "rest" | "completed";
+type RestPhaseKind = "between_reps" | "between_sets" | null;
 
 const PHASE_THEME = {
   prep: { accent: colors.timer.rest, bg: colors.timer.restBg, track: colors.timer.restTrack },
@@ -105,8 +106,11 @@ export default function TimerScreen() {
   const [plannedSets, setPlannedSets] = React.useState(3);
   const [plannedReps, setPlannedReps] = React.useState(6);
   const [plannedRepDurationSeconds, setPlannedRepDurationSeconds] = React.useState(30);
-  const [plannedRestSeconds, setPlannedRestSeconds] = React.useState(60);
+  const [plannedRepRestSeconds, setPlannedRepRestSeconds] = React.useState(60);
+  const [plannedSetRestSeconds, setPlannedSetRestSeconds] = React.useState(60);
   const [currentSet, setCurrentSet] = React.useState(1);
+  const [currentRep, setCurrentRep] = React.useState(1);
+  const [restPhaseKind, setRestPhaseKind] = React.useState<RestPhaseKind>(null);
   const [phase, setPhase] = React.useState<TimerPhase>("prep");
   const [awaitingStart, setAwaitingStart] = React.useState(true);
   const [phaseEndsAt, setPhaseEndsAt] = React.useState<number | null>(null);
@@ -128,13 +132,15 @@ export default function TimerScreen() {
       ? PREP_PHASE_SECONDS
       : phase === "rep"
         ? plannedRepDurationSeconds
-        : plannedRestSeconds;
+        : restPhaseKind === "between_sets"
+          ? plannedSetRestSeconds
+          : plannedRepRestSeconds;
   const remainingMs =
     phase === "completed"
       ? 0
       : awaitingStart && phase === "prep"
         ? PREP_PHASE_SECONDS * 1000
-      : pausedRemainingMs ?? Math.max(0, (phaseEndsAt ?? getNowMs()) - nowTick);
+        : (pausedRemainingMs ?? Math.max(0, (phaseEndsAt ?? getNowMs()) - nowTick));
 
   // --------------- Reanimated: background color ---------------
   const bgValue = useSharedValue(0);
@@ -253,7 +259,12 @@ export default function TimerScreen() {
       else void soundManager.play("countdown3");
     }
 
-    if (phase === "rep" && seconds <= WORK_TICK_THRESHOLD && seconds >= 1 && seconds !== lastBeepRef.current) {
+    if (
+      phase === "rep" &&
+      seconds <= WORK_TICK_THRESHOLD &&
+      seconds >= 1 &&
+      seconds !== lastBeepRef.current
+    ) {
       lastBeepRef.current = seconds;
       if (seconds === 1) void soundManager.play("go");
       else void soundManager.play("workTick");
@@ -272,9 +283,10 @@ export default function TimerScreen() {
 
   // --------------- session init ---------------
   const setPhaseRunning = React.useCallback(
-    (nextPhase: TimerPhase, durationSeconds: number) => {
+    (nextPhase: TimerPhase, durationSeconds: number, nextRestKind: RestPhaseKind = null) => {
       setAwaitingStart(false);
       setPhase(nextPhase);
+      setRestPhaseKind(nextPhase === "rest" ? nextRestKind : null);
       setPausedRemainingMs(null);
       setPhaseEndsAt(getNowMs() + durationSeconds * 1000);
     },
@@ -290,34 +302,106 @@ export default function TimerScreen() {
       const resolvedSets = clampPositiveInt(log?.planned?.sets, 3);
       const resolvedReps = clampPositiveInt(log?.planned?.reps, 6);
       const resolvedRepDuration = clampPositiveInt(log?.planned?.durationSeconds, 30);
-      const resolvedRestDuration = clampPositiveInt(log?.planned?.restSeconds, 60);
+      const resolvedRepRestDuration = clampPositiveInt(log?.planned?.restSeconds, 60);
+      const resolvedSetRestDuration = clampPositiveInt(
+        log?.planned?.restBetweenSetsSeconds,
+        resolvedRepRestDuration,
+      );
       let resumedSet = 1;
+      let resumedRep = 1;
       let resumedPhase: TimerPhase = "rep";
+      let resumedRestKind: RestPhaseKind = null;
+      let didCompleteAllReps = false;
       for (const step of log?.steps ?? []) {
         if (step.kind === "rep") {
-          resumedSet = Math.max(resumedSet, step.setNumber);
+          const stepSet = Math.min(Math.max(1, step.setNumber), resolvedSets);
+          const stepRep = Math.min(
+            Math.max(
+              1,
+              step.repNumber ?? ((step.completedReps ?? 0) >= resolvedReps ? resolvedReps : 1),
+            ),
+            resolvedReps,
+          );
+          const isLastRepInSet = stepRep >= resolvedReps;
+          const isLastSet = stepSet >= resolvedSets;
+          if (isLastRepInSet && isLastSet) {
+            resumedSet = resolvedSets;
+            resumedRep = resolvedReps;
+            resumedPhase = "completed";
+            resumedRestKind = null;
+            didCompleteAllReps = true;
+            continue;
+          }
+          resumedSet = stepSet;
+          resumedRep = stepRep;
           resumedPhase = "rest";
-        } else if (step.kind === "rest" || step.kind === "set_skipped") {
-          resumedSet = Math.max(resumedSet, step.setNumber + 1);
+          resumedRestKind = isLastRepInSet ? "between_sets" : "between_reps";
+          continue;
+        }
+
+        if (step.kind === "rest") {
+          const stepSet = Math.min(Math.max(1, step.setNumber), resolvedSets);
+          const stepRep = Math.min(Math.max(1, step.repNumber ?? 1), resolvedReps);
+          const inferredRestKind: RestPhaseKind =
+            step.note === "between_reps"
+              ? "between_reps"
+              : step.note === "between_sets"
+                ? "between_sets"
+                : step.repNumber === undefined
+                  ? "between_sets"
+                  : stepRep >= resolvedReps
+                    ? "between_sets"
+                    : "between_reps";
+          if (inferredRestKind === "between_reps") {
+            resumedSet = stepSet;
+            resumedRep = Math.min(stepRep + 1, resolvedReps);
+          } else {
+            resumedSet = Math.min(stepSet + 1, resolvedSets);
+            resumedRep = 1;
+          }
           resumedPhase = "rep";
+          resumedRestKind = null;
+          continue;
+        }
+
+        if (step.kind === "set_skipped") {
+          resumedSet = Math.min(Math.max(1, step.setNumber + 1), resolvedSets);
+          resumedRep = 1;
+          resumedPhase = "rep";
+          resumedRestKind = null;
         }
       }
-      resumedSet = Math.min(resumedSet, resolvedSets);
+      resumedSet = Math.min(Math.max(1, resumedSet), resolvedSets);
+      resumedRep = Math.min(Math.max(1, resumedRep), resolvedReps);
       setLogId(log?._id ?? null);
       setPlannedSets(resolvedSets);
       setPlannedReps(resolvedReps);
       setPlannedRepDurationSeconds(resolvedRepDuration);
-      setPlannedRestSeconds(resolvedRestDuration);
+      setPlannedRepRestSeconds(resolvedRepRestDuration);
+      setPlannedSetRestSeconds(resolvedSetRestDuration);
       setCurrentSet(resumedSet);
+      setCurrentRep(resumedRep);
+      setRestPhaseKind(resumedRestKind);
       const hasRecordedSteps = (log?.steps?.length ?? 0) > 0;
-      if (hasRecordedSteps) {
+      if (hasRecordedSteps && !didCompleteAllReps) {
         setAwaitingStart(false);
         setPhase(resumedPhase);
-        const duration = resumedPhase === "rep" ? resolvedRepDuration : resolvedRestDuration;
+        const duration =
+          resumedPhase === "rep"
+            ? resolvedRepDuration
+            : resumedRestKind === "between_sets"
+              ? resolvedSetRestDuration
+              : resolvedRepRestDuration;
         setPhaseEndsAt(getNowMs() + duration * 1000);
+      } else if (didCompleteAllReps) {
+        setAwaitingStart(false);
+        setPhase("completed");
+        setRestPhaseKind(null);
+        setPhaseEndsAt(null);
       } else {
         setAwaitingStart(true);
         setPhase("prep");
+        setRestPhaseKind(null);
         setPhaseEndsAt(null);
       }
       setPausedRemainingMs(null);
@@ -360,18 +444,24 @@ export default function TimerScreen() {
       await recordStep({
         kind: "rep",
         setNumber: currentSet,
-        repNumber: 1,
-        completedReps: plannedReps,
+        repNumber: currentRep,
+        completedReps: 1,
         plannedDurationSeconds: plannedRepDurationSeconds,
         actualDurationMs,
       });
+      const isLastRepInSet = currentRep >= plannedReps;
+      if (!isLastRepInSet) {
+        setPhaseRunning("rest", plannedRepRestSeconds, "between_reps");
+        return;
+      }
       if (currentSet >= plannedSets) {
         setPhase("completed");
+        setRestPhaseKind(null);
         setPhaseEndsAt(null);
         setPausedRemainingMs(null);
         return;
       }
-      setPhaseRunning("rest", plannedRestSeconds);
+      setPhaseRunning("rest", plannedSetRestSeconds, "between_sets");
     } catch (phaseError) {
       setError(phaseError instanceof Error ? phaseError.message : "Could not save rep step.");
     } finally {
@@ -379,11 +469,13 @@ export default function TimerScreen() {
     }
   }, [
     currentPhaseDurationSeconds,
+    currentRep,
     currentSet,
     logId,
     plannedReps,
     plannedRepDurationSeconds,
-    plannedRestSeconds,
+    plannedRepRestSeconds,
+    plannedSetRestSeconds,
     plannedSets,
     recordStep,
     remainingMs,
@@ -396,13 +488,31 @@ export default function TimerScreen() {
     setError(null);
     try {
       const actualDurationMs = Math.max(0, currentPhaseDurationSeconds * 1000 - remainingMs);
+      const activeRestKind = restPhaseKind ?? "between_sets";
+      const restDuration =
+        activeRestKind === "between_sets" ? plannedSetRestSeconds : plannedRepRestSeconds;
       await recordStep({
         kind: "rest",
         setNumber: currentSet,
-        plannedDurationSeconds: plannedRestSeconds,
+        repNumber: currentRep,
+        plannedDurationSeconds: restDuration,
         actualDurationMs,
+        note: activeRestKind,
       });
-      setCurrentSet((prev) => prev + 1);
+      if (activeRestKind === "between_reps" && currentRep < plannedReps) {
+        setCurrentRep((prev) => Math.min(prev + 1, plannedReps));
+        setPhaseRunning("rep", plannedRepDurationSeconds);
+        return;
+      }
+      if (currentSet >= plannedSets) {
+        setPhase("completed");
+        setRestPhaseKind(null);
+        setPhaseEndsAt(null);
+        setPausedRemainingMs(null);
+        return;
+      }
+      setCurrentSet((prev) => Math.min(prev + 1, plannedSets));
+      setCurrentRep(1);
       setPhaseRunning("rep", plannedRepDurationSeconds);
     } catch (phaseError) {
       setError(phaseError instanceof Error ? phaseError.message : "Could not save rest step.");
@@ -411,12 +521,17 @@ export default function TimerScreen() {
     }
   }, [
     currentPhaseDurationSeconds,
+    currentRep,
     currentSet,
     logId,
+    plannedReps,
     plannedRepDurationSeconds,
-    plannedRestSeconds,
+    plannedRepRestSeconds,
+    plannedSetRestSeconds,
+    plannedSets,
     recordStep,
     remainingMs,
+    restPhaseKind,
     setPhaseRunning,
   ]);
 
@@ -471,6 +586,7 @@ export default function TimerScreen() {
     setError(null);
     setAwaitingStart(false);
     setPhase("prep");
+    setRestPhaseKind(null);
     setPausedRemainingMs(null);
     setPhaseEndsAt(getNowMs() + PREP_PHASE_SECONDS * 1000);
   };
@@ -493,6 +609,7 @@ export default function TimerScreen() {
       await recordStep({
         kind: "set_skipped",
         setNumber: currentSet,
+        repNumber: currentRep,
         plannedDurationSeconds: currentPhaseDurationSeconds,
         actualDurationMs: 0,
         note: "Skipped by user",
@@ -506,7 +623,8 @@ export default function TimerScreen() {
         router.replace("/tabs/calendar");
         return;
       }
-      setCurrentSet((prev) => prev + 1);
+      setCurrentSet((prev) => Math.min(prev + 1, plannedSets));
+      setCurrentRep(1);
       setPhaseRunning("rep", plannedRepDurationSeconds);
     } catch (skipError) {
       setError(skipError instanceof Error ? skipError.message : "Could not skip set.");
@@ -536,10 +654,27 @@ export default function TimerScreen() {
   const theme = PHASE_THEME[phase];
   const isPaused = pausedRemainingMs !== null;
   const showReadyGate = isPrep && awaitingStart;
-  const completedSets = isCompleted
-    ? plannedSets
-    : Math.max(0, Math.min(currentSet - 1, plannedSets));
-  const setProgressPercent = plannedSets > 0 ? (completedSets / plannedSets) * 100 : 0;
+  const totalCycles = plannedSets * plannedReps;
+  const completedCycles = isCompleted
+    ? totalCycles
+    : showReadyGate
+      ? 0
+      : phase === "rest"
+        ? Math.min(totalCycles, (currentSet - 1) * plannedReps + currentRep)
+        : Math.min(totalCycles, Math.max(0, (currentSet - 1) * plannedReps + (currentRep - 1)));
+  const currentCycle = showReadyGate
+    ? 0
+    : isCompleted
+      ? totalCycles
+      : phase === "rep"
+        ? Math.min(totalCycles, completedCycles + 1)
+        : completedCycles;
+  const cycleProgressPercent = totalCycles > 0 ? (completedCycles / totalCycles) * 100 : 0;
+  const displaySet = Math.min(currentSet, plannedSets);
+  const displayRep =
+    phase === "rest" && restPhaseKind === "between_sets"
+      ? plannedReps
+      : Math.min(currentRep, plannedReps);
 
   const phaseLabel = isCompleted
     ? "DONE"
@@ -551,13 +686,18 @@ export default function TimerScreen() {
           ? "GET READY"
           : isRep
             ? "WORK"
-            : "REST";
+            : restPhaseKind === "between_sets"
+              ? "SET REST"
+              : "REST";
   const mergedVariables = React.useMemo(
     () => ({
       weight: session?.overrides.weight ?? session?.snapshot.variables.weight,
       reps: session?.overrides.reps ?? session?.snapshot.variables.reps,
       sets: session?.overrides.sets ?? session?.snapshot.variables.sets,
       restSeconds: session?.overrides.restSeconds ?? session?.snapshot.variables.restSeconds,
+      restBetweenSetsSeconds:
+        session?.overrides.restBetweenSetsSeconds ??
+        session?.snapshot.variables.restBetweenSetsSeconds,
       durationSeconds:
         session?.overrides.durationSeconds ?? session?.snapshot.variables.durationSeconds,
     }),
@@ -575,13 +715,15 @@ export default function TimerScreen() {
   const currentExerciseEquipment = session?.snapshot.equipment.length
     ? session.snapshot.equipment.join(", ")
     : "None";
+  const effectiveSetRestSeconds =
+    mergedVariables.restBetweenSetsSeconds ?? mergedVariables.restSeconds;
   const currentExerciseSummary = `Load ${describeLoad(
     session?.snapshot.trainingType,
     mergedVariables.weight,
     profile?.bodyWeightKg,
-  )} · ${mergedVariables.sets ?? "—"} sets · ${mergedVariables.reps ?? "—"} reps · Rest ${
+  )} · ${mergedVariables.sets ?? "—"} sets · ${mergedVariables.reps ?? "—"} reps · Rep rest ${
     mergedVariables.restSeconds ?? "—"
-  }s · Duration ${mergedVariables.durationSeconds ?? "—"}s`;
+  }s · Set rest ${effectiveSetRestSeconds ?? "—"}s · Duration ${mergedVariables.durationSeconds ?? "—"}s`;
 
   // --------------- missing session fallback ---------------
   if (!sessionId) {
@@ -615,14 +757,15 @@ export default function TimerScreen() {
                 style={[
                   styles.progressFill,
                   {
-                    width: `${setProgressPercent}%`,
+                    width: `${cycleProgressPercent}%`,
                     backgroundColor: isCompleted ? colors.success : theme.accent,
                   },
                 ]}
               />
             </View>
             <Text style={styles.setText}>
-              Set {Math.min(currentSet, plannedSets)}/{plannedSets}
+              Cycle {currentCycle}/{totalCycles} · Set {displaySet}/{plannedSets} · Rep {displayRep}
+              /{plannedReps}
             </Text>
           </View>
         </View>
@@ -640,14 +783,21 @@ export default function TimerScreen() {
                 <Text style={styles.exerciseDetailsMeta}>{currentExerciseSummary}</Text>
                 <Text style={styles.exerciseDetailsMeta}>Type: {currentExerciseTypeLabel}</Text>
                 <Text style={styles.exerciseDetailsMeta}>Category: {currentExerciseCategory}</Text>
-                <Text style={styles.exerciseDetailsMeta}>Equipment: {currentExerciseEquipment}</Text>
+                <Text style={styles.exerciseDetailsMeta}>
+                  Equipment: {currentExerciseEquipment}
+                </Text>
                 <Text style={styles.exerciseDetailsMeta}>Tags: {currentExerciseTags}</Text>
               </View>
               <Text style={styles.readyHint}>Tap when you are ready.</Text>
-              <Pressable onPress={startPreparation} style={[styles.readyBtn, { backgroundColor: theme.accent }]}>
+              <Pressable
+                onPress={startPreparation}
+                style={[styles.readyBtn, { backgroundColor: theme.accent }]}
+              >
                 <Text style={styles.readyBtnText}>I'M READY</Text>
               </Pressable>
-              <Text style={styles.readySubHint}>A 5 second prep countdown starts after you tap.</Text>
+              <Text style={styles.readySubHint}>
+                A 5 second prep countdown starts after you tap.
+              </Text>
             </View>
           ) : (
             <>
@@ -695,7 +845,11 @@ export default function TimerScreen() {
                 <Text style={styles.subtitle}>
                   {isPrep
                     ? "Preparation countdown before work starts"
-                    : `${plannedReps} reps · ${currentPhaseDurationSeconds}s target`}
+                    : isRep
+                      ? `Set ${displaySet}/${plannedSets} · Rep ${displayRep}/${plannedReps} · ${currentPhaseDurationSeconds}s work`
+                      : restPhaseKind === "between_sets"
+                        ? `Set rest before next set · ${currentPhaseDurationSeconds}s`
+                        : `Rep rest before next rep · ${currentPhaseDurationSeconds}s`}
                 </Text>
               )}
 
@@ -713,11 +867,17 @@ export default function TimerScreen() {
                 </Pressable>
                 {detailsExpanded ? (
                   <View style={styles.exerciseDetailsCard}>
-                    <Text style={styles.exerciseDetailsDescription}>{currentExerciseDescription}</Text>
+                    <Text style={styles.exerciseDetailsDescription}>
+                      {currentExerciseDescription}
+                    </Text>
                     <Text style={styles.exerciseDetailsMeta}>{currentExerciseSummary}</Text>
                     <Text style={styles.exerciseDetailsMeta}>Type: {currentExerciseTypeLabel}</Text>
-                    <Text style={styles.exerciseDetailsMeta}>Category: {currentExerciseCategory}</Text>
-                    <Text style={styles.exerciseDetailsMeta}>Equipment: {currentExerciseEquipment}</Text>
+                    <Text style={styles.exerciseDetailsMeta}>
+                      Category: {currentExerciseCategory}
+                    </Text>
+                    <Text style={styles.exerciseDetailsMeta}>
+                      Equipment: {currentExerciseEquipment}
+                    </Text>
                     <Text style={styles.exerciseDetailsMeta}>Tags: {currentExerciseTags}</Text>
                   </View>
                 ) : null}
@@ -813,7 +973,12 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
 
-  ringContainer: { width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" },
+  ringContainer: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   timerText: {
     fontSize: 72,
     lineHeight: 80,
@@ -824,7 +989,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  completionCircle: { width: RING_SIZE, height: RING_SIZE, alignItems: "center", justifyContent: "center" },
+  completionCircle: {
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   checkCircle: {
     width: 140,
     height: 140,
@@ -929,7 +1099,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  playBtn: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center" },
+  playBtn: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   secondaryActionBtn: {
     borderRadius: 12,
     borderWidth: 1,

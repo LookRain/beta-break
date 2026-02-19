@@ -4,7 +4,11 @@ import { ChevronRight, Play } from "lucide-react-native";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
-import { SessionCard, type SessionSnapshot, type SessionVariables } from "@/components/session-card";
+import {
+  SessionCard,
+  type SessionSnapshot,
+  type SessionVariables,
+} from "@/components/session-card";
 import { colors } from "@/lib/theme";
 
 type UpcomingSessionData = {
@@ -28,15 +32,13 @@ type UpcomingSessionCardProps = {
   doneButtonTextClassName?: string;
 };
 
-function mergeVariables(
-  base: SessionVariables,
-  overrides: SessionVariables,
-): SessionVariables {
+function mergeVariables(base: SessionVariables, overrides: SessionVariables): SessionVariables {
   return {
     weight: overrides.weight ?? base.weight,
     reps: overrides.reps ?? base.reps,
     sets: overrides.sets ?? base.sets,
     restSeconds: overrides.restSeconds ?? base.restSeconds,
+    restBetweenSetsSeconds: overrides.restBetweenSetsSeconds ?? base.restBetweenSetsSeconds,
     durationSeconds: overrides.durationSeconds ?? base.durationSeconds,
   };
 }
@@ -65,7 +67,10 @@ export function UpcomingSessionCard({
         statusBadge={
           <Box className="flex-row items-center gap-2">
             {showReadyBadge ? (
-              <Box className="rounded-full px-2.5 py-1" style={{ backgroundColor: colors.primaryBg }}>
+              <Box
+                className="rounded-full px-2.5 py-1"
+                style={{ backgroundColor: colors.primaryBg }}
+              >
                 <Text className="text-xs font-semibold" style={{ color: colors.primary }}>
                   Ready
                 </Text>

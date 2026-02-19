@@ -46,6 +46,7 @@ type TrainingItemFormValues = {
     reps?: number;
     sets?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   };
   trainingType?: TrainingType;
@@ -108,6 +109,7 @@ const presetFieldValues = {
   sets: ["3", "4", "5", "6"],
   reps: ["5", "7", "10", "12"],
   restSeconds: ["60", "90", "120", "180"],
+  restBetweenSetsSeconds: ["90", "120", "180", "240"],
   durationSeconds: ["7", "10", "20", "30"],
 };
 
@@ -176,6 +178,9 @@ export function TrainingItemForm({
   const [sets, setSets] = React.useState(initialValues?.variables.sets?.toString() ?? "6");
   const [restSeconds, setRestSeconds] = React.useState(
     initialValues?.variables.restSeconds?.toString() ?? "120",
+  );
+  const [restBetweenSetsSeconds, setRestBetweenSetsSeconds] = React.useState(
+    initialValues?.variables.restBetweenSetsSeconds?.toString() ?? "",
   );
   const [durationSeconds, setDurationSeconds] = React.useState(
     initialValues?.variables.durationSeconds?.toString() ?? "7",
@@ -269,6 +274,7 @@ export function TrainingItemForm({
           reps: parseOptionalNumber(reps),
           sets: parseOptionalNumber(sets),
           restSeconds: parseOptionalNumber(restSeconds),
+          restBetweenSetsSeconds: parseOptionalNumber(restBetweenSetsSeconds),
           durationSeconds: parseOptionalNumber(durationSeconds),
         },
       });
@@ -456,19 +462,11 @@ export function TrainingItemForm({
 
           <Box style={sectionCardStyle}>
             <Text className="text-base font-semibold text-typography-900">Workout Parameters</Text>
+            <Text className="text-xs text-typography-500">
+              Reps are work cycles per set. Sets are how many rounds you repeat. Rep duration is
+              work time per rep; rest values are recovery time between reps and sets.
+            </Text>
             <Box className="flex-row gap-2">
-              <Box className="flex-1">
-                <Text className="text-xs text-typography-500 mb-1">Sets</Text>
-                <TextInput
-                  editable={!disabled}
-                  placeholder="—"
-                  placeholderTextColor={colors.textMuted}
-                  value={sets}
-                  onChangeText={setSets}
-                  keyboardType="numeric"
-                  style={inputStyle}
-                />
-              </Box>
               <Box className="flex-1">
                 <Text className="text-xs text-typography-500 mb-1">Reps</Text>
                 <TextInput
@@ -481,10 +479,36 @@ export function TrainingItemForm({
                   style={inputStyle}
                 />
               </Box>
+              <Box className="flex-1">
+                <Text className="text-xs text-typography-500 mb-1">Sets</Text>
+                <TextInput
+                  editable={!disabled}
+                  placeholder="—"
+                  placeholderTextColor={colors.textMuted}
+                  value={sets}
+                  onChangeText={setSets}
+                  keyboardType="numeric"
+                  style={inputStyle}
+                />
+              </Box>
             </Box>
             <Box className="flex-row gap-2">
               <Box className="flex-1">
-                <Text className="text-xs text-typography-500 mb-1">Rest (s)</Text>
+                <Text className="text-xs text-typography-500 mb-1">Rep duration (s)</Text>
+                <TextInput
+                  editable={!disabled}
+                  placeholder="—"
+                  placeholderTextColor={colors.textMuted}
+                  value={durationSeconds}
+                  onChangeText={setDurationSeconds}
+                  keyboardType="numeric"
+                  style={inputStyle}
+                />
+              </Box>
+            </Box>
+            <Box className="flex-row gap-2">
+              <Box className="flex-1">
+                <Text className="text-xs text-typography-500 mb-1">Rest between reps (s)</Text>
                 <TextInput
                   editable={!disabled}
                   placeholder="—"
@@ -496,13 +520,13 @@ export function TrainingItemForm({
                 />
               </Box>
               <Box className="flex-1">
-                <Text className="text-xs text-typography-500 mb-1">Duration (s)</Text>
+                <Text className="text-xs text-typography-500 mb-1">Rest between sets (s)</Text>
                 <TextInput
                   editable={!disabled}
-                  placeholder="—"
+                  placeholder="Defaults to rep rest"
                   placeholderTextColor={colors.textMuted}
-                  value={durationSeconds}
-                  onChangeText={setDurationSeconds}
+                  value={restBetweenSetsSeconds}
+                  onChangeText={setRestBetweenSetsSeconds}
                   keyboardType="numeric"
                   style={inputStyle}
                 />
@@ -518,22 +542,6 @@ export function TrainingItemForm({
             {showStructureQuickPicks ? (
               <Box className="gap-2">
                 <Box className="flex-row gap-1 flex-wrap">
-                  {presetFieldValues.sets.map((entry) => (
-                    <Pressable
-                      key={`sets-${entry}`}
-                      onPress={() => !disabled && setSets(entry)}
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 999,
-                        backgroundColor: sets === entry ? colors.primary : colors.borderLight,
-                      }}
-                    >
-                      <Text style={{ color: sets === entry ? "#fff" : colors.text, fontSize: 11 }}>
-                        Sets {entry}
-                      </Text>
-                    </Pressable>
-                  ))}
                   {presetFieldValues.reps.map((entry) => (
                     <Pressable
                       key={`reps-${entry}`}
@@ -550,30 +558,24 @@ export function TrainingItemForm({
                       </Text>
                     </Pressable>
                   ))}
-                </Box>
-                <Box className="flex-row gap-1 flex-wrap">
-                  {presetFieldValues.restSeconds.map((entry) => (
+                  {presetFieldValues.sets.map((entry) => (
                     <Pressable
-                      key={`rest-${entry}`}
-                      onPress={() => !disabled && setRestSeconds(entry)}
+                      key={`sets-${entry}`}
+                      onPress={() => !disabled && setSets(entry)}
                       style={{
                         paddingHorizontal: 8,
                         paddingVertical: 4,
                         borderRadius: 999,
-                        backgroundColor:
-                          restSeconds === entry ? colors.primary : colors.borderLight,
+                        backgroundColor: sets === entry ? colors.primary : colors.borderLight,
                       }}
                     >
-                      <Text
-                        style={{
-                          color: restSeconds === entry ? "#fff" : colors.text,
-                          fontSize: 11,
-                        }}
-                      >
-                        Rest {entry}s
+                      <Text style={{ color: sets === entry ? "#fff" : colors.text, fontSize: 11 }}>
+                        Sets {entry}
                       </Text>
                     </Pressable>
                   ))}
+                </Box>
+                <Box className="flex-row gap-1 flex-wrap">
                   {presetFieldValues.durationSeconds.map((entry) => (
                     <Pressable
                       key={`duration-${entry}`}
@@ -592,7 +594,51 @@ export function TrainingItemForm({
                           fontSize: 11,
                         }}
                       >
-                        Duration {entry}s
+                        Rep duration {entry}s
+                      </Text>
+                    </Pressable>
+                  ))}
+                  {presetFieldValues.restSeconds.map((entry) => (
+                    <Pressable
+                      key={`rest-${entry}`}
+                      onPress={() => !disabled && setRestSeconds(entry)}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 999,
+                        backgroundColor:
+                          restSeconds === entry ? colors.primary : colors.borderLight,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: restSeconds === entry ? "#fff" : colors.text,
+                          fontSize: 11,
+                        }}
+                      >
+                        Rep rest {entry}s
+                      </Text>
+                    </Pressable>
+                  ))}
+                  {presetFieldValues.restBetweenSetsSeconds.map((entry) => (
+                    <Pressable
+                      key={`set-rest-${entry}`}
+                      onPress={() => !disabled && setRestBetweenSetsSeconds(entry)}
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 999,
+                        backgroundColor:
+                          restBetweenSetsSeconds === entry ? colors.primary : colors.borderLight,
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: restBetweenSetsSeconds === entry ? "#fff" : colors.text,
+                          fontSize: 11,
+                        }}
+                      >
+                        Set rest {entry}s
                       </Text>
                     </Pressable>
                   ))}

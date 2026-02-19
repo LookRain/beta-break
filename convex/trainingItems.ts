@@ -7,6 +7,7 @@ const variablesValidator = v.object({
   reps: v.optional(v.number()),
   sets: v.optional(v.number()),
   restSeconds: v.optional(v.number()),
+  restBetweenSetsSeconds: v.optional(v.number()),
   durationSeconds: v.optional(v.number()),
 });
 
@@ -207,27 +208,28 @@ export const listPublishedItems = queryGeneric({
 
     const filtered = items
       .filter((item) => {
-      if (args.category && item.category !== args.category) {
-        return false;
-      }
-      if (args.difficulty && item.difficulty !== args.difficulty) {
-        return false;
-      }
-      if (requestedTags.size > 0) {
-        const itemTags = new Set(item.tags.map((tag: string) => tag.toLowerCase()));
-        for (const tag of requestedTags) {
-          if (!itemTags.has(tag)) {
+        if (args.category && item.category !== args.category) {
+          return false;
+        }
+        if (args.difficulty && item.difficulty !== args.difficulty) {
+          return false;
+        }
+        if (requestedTags.size > 0) {
+          const itemTags = new Set(item.tags.map((tag: string) => tag.toLowerCase()));
+          for (const tag of requestedTags) {
+            if (!itemTags.has(tag)) {
+              return false;
+            }
+          }
+        }
+        if (normalizedSearch) {
+          const haystack =
+            `${item.title} ${item.description ?? ""} ${item.tags.join(" ")}`.toLowerCase();
+          if (!haystack.includes(normalizedSearch)) {
             return false;
           }
         }
-      }
-      if (normalizedSearch) {
-        const haystack = `${item.title} ${item.description ?? ""} ${item.tags.join(" ")}`.toLowerCase();
-        if (!haystack.includes(normalizedSearch)) {
-          return false;
-        }
-      }
-      return true;
+        return true;
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
 

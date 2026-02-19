@@ -28,6 +28,11 @@ import { SessionCard } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
 import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, screenPadding } from "@/lib/theme";
+import {
+  HANG_CRIMP_TYPES,
+  HANG_EDGE_MM_OPTIONS,
+  HANG_EQUIPMENT_OPTIONS,
+} from "@/lib/trainingItemFilters";
 import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 type SessionOverrides = {
@@ -35,6 +40,7 @@ type SessionOverrides = {
   reps?: number;
   sets?: number;
   restSeconds?: number;
+  restBetweenSetsSeconds?: number;
   durationSeconds?: number;
 };
 
@@ -43,6 +49,7 @@ type SessionEditDraft = {
   reps: string;
   sets: string;
   restSeconds: string;
+  restBetweenSetsSeconds: string;
   durationSeconds: string;
   weightInputMode: "percent" | "absolute";
 };
@@ -71,6 +78,7 @@ function mergeVariables(
     reps?: number;
     sets?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   },
   overrides: {
@@ -78,6 +86,7 @@ function mergeVariables(
     reps?: number;
     sets?: number;
     restSeconds?: number;
+    restBetweenSetsSeconds?: number;
     durationSeconds?: number;
   },
 ) {
@@ -86,8 +95,51 @@ function mergeVariables(
     reps: overrides.reps ?? base.reps,
     sets: overrides.sets ?? base.sets,
     restSeconds: overrides.restSeconds ?? base.restSeconds,
+    restBetweenSetsSeconds: overrides.restBetweenSetsSeconds ?? base.restBetweenSetsSeconds,
     durationSeconds: overrides.durationSeconds ?? base.durationSeconds,
   };
+}
+
+const sectionCardStyle = {
+  ...cardShadow,
+  backgroundColor: colors.bgCard,
+  borderRadius: 16,
+  padding: 16,
+  borderWidth: 1,
+  borderColor: colors.border,
+  gap: 12,
+} as const;
+
+const sectionOverlayContainerStyle = {
+  position: "relative",
+  overflow: "hidden",
+} as const;
+
+const sectionOverlayStyle = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  bottom: 0,
+  left: 0,
+  backgroundColor: "rgba(255, 255, 255, 0.72)",
+  alignItems: "center",
+  justifyContent: "center",
+  paddingHorizontal: 12,
+} as const;
+
+const trainingTypeLabel: Record<string, string> = {
+  hang: "Hang",
+  weight_training: "Weight training",
+  climbing: "Climbing",
+  others: "Others",
+};
+
+function OverrideUnavailableOverlay() {
+  return (
+    <Box pointerEvents="none" style={sectionOverlayStyle}>
+      <Text className="text-xs font-semibold text-typography-500">Override not available</Text>
+    </Box>
+  );
 }
 
 function parseOptionalNumber(value: string): number | undefined {
@@ -125,6 +177,7 @@ function buildEditDraft(base: SessionOverrides, overrides: SessionOverrides): Se
     reps: merged.reps?.toString() ?? "",
     sets: merged.sets?.toString() ?? "",
     restSeconds: merged.restSeconds?.toString() ?? "",
+    restBetweenSetsSeconds: merged.restBetweenSetsSeconds?.toString() ?? "",
     durationSeconds: merged.durationSeconds?.toString() ?? "",
     weightInputMode: "percent",
   };
@@ -150,6 +203,7 @@ export default function TrainScreen() {
   const completeSession = useMutation(api.trainingSchedule.completeSession);
   const updateUpcomingSession = useMutation(api.trainingSchedule.updateUpcomingSession);
   const updateRecurringRuleFuture = useMutation(api.trainingSchedule.updateRecurringRuleFuture);
+  const removeRecurringRuleFuture = useMutation(api.trainingSchedule.removeRecurringRuleFuture);
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [dialogError, setDialogError] = React.useState<string | null>(null);
@@ -277,6 +331,7 @@ export default function TrainScreen() {
         reps: parseOptionalNumber(draft.reps),
         sets: parseOptionalNumber(draft.sets),
         restSeconds: parseOptionalNumber(draft.restSeconds),
+        restBetweenSetsSeconds: parseOptionalNumber(draft.restBetweenSetsSeconds),
         durationSeconds: parseOptionalNumber(draft.durationSeconds),
       };
     },
@@ -585,7 +640,7 @@ export default function TrainScreen() {
         }}
       >
         <ActionsheetBackdrop />
-        <ActionsheetContent className="min-h-[58%] max-h-[88%]">
+        <ActionsheetContent className="min-h-[72%] max-h-[92%]">
           <ActionsheetDragIndicatorWrapper>
             <ActionsheetDragIndicator />
           </ActionsheetDragIndicatorWrapper>
@@ -596,34 +651,95 @@ export default function TrainScreen() {
             <ScrollView
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+              automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               contentInsetAdjustmentBehavior="automatic"
               style={{ width: "100%" }}
               contentContainerStyle={{ gap: 12, paddingHorizontal: 4, paddingBottom: 20 }}
             >
               {overrideSession && overrideDraft ? (
                 <Box className="gap-4">
-                  <Text className="text-xl font-bold text-typography-900">
-                    Override {overrideSession.snapshot.title}
-                  </Text>
+                  <Text className="text-xl font-bold text-typography-900">Override session</Text>
 
-                  <Box className="gap-2">
-                    <Text className="text-xs font-semibold text-typography-400 uppercase tracking-wide">
-                      Workout parameters
+                  <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
+                    <Text className="text-base font-semibold text-typography-900">Essentials</Text>
+                    <TextInput
+                      editable={false}
+                      value={overrideSession.snapshot.title}
+                      style={{ ...inputStyle, color: colors.textMuted }}
+                    />
+                    <TextInput
+                      editable={false}
+                      value={
+                        trainingTypeLabel[overrideSession.snapshot.trainingType ?? ""] ?? "Not set"
+                      }
+                      style={{ ...inputStyle, color: colors.textMuted }}
+                    />
+                    <TextInput
+                      editable={false}
+                      value={overrideSession.snapshot.category || "Not set"}
+                      style={{ ...inputStyle, color: colors.textMuted }}
+                    />
+                    <TextInput
+                      editable={false}
+                      multiline
+                      value={overrideSession.snapshot.description ?? "Not set"}
+                      style={{
+                        ...inputStyle,
+                        color: colors.textMuted,
+                        minHeight: 72,
+                        textAlignVertical: "top",
+                      }}
+                    />
+                    <OverrideUnavailableOverlay />
+                  </Box>
+
+                  <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
+                    <Text className="text-base font-semibold text-typography-900">Difficulty</Text>
+                    <Box className="flex-row gap-2">
+                      {(["beginner", "intermediate", "advanced"] as const).map((difficulty) => (
+                        <Pressable
+                          key={difficulty}
+                          disabled
+                          style={{
+                            flex: 1,
+                            paddingVertical: 10,
+                            borderRadius: 12,
+                            alignItems: "center",
+                            backgroundColor:
+                              overrideSession.snapshot.difficulty === difficulty
+                                ? colors.primary
+                                : colors.borderLight,
+                            opacity: 0.6,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "600",
+                              color:
+                                overrideSession.snapshot.difficulty === difficulty
+                                  ? "#fff"
+                                  : colors.text,
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {difficulty}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </Box>
+                    <OverrideUnavailableOverlay />
+                  </Box>
+
+                  <Box style={sectionCardStyle}>
+                    <Text className="text-base font-semibold text-typography-900">
+                      Workout Parameters
+                    </Text>
+                    <Text className="text-xs text-typography-500">
+                      Reps are work cycles per set. Sets are repeated rounds. Rep duration is work
+                      time per rep; rest values are recovery between reps and sets.
                     </Text>
                     <Box className="flex-row gap-2">
-                      <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Sets</Text>
-                        <TextInput
-                          placeholder="—"
-                          placeholderTextColor={colors.textMuted}
-                          value={overrideDraft.sets}
-                          onChangeText={(value) =>
-                            updateSessionDraft(overrideSession._id, { sets: value })
-                          }
-                          keyboardType="numeric"
-                          style={inputStyle}
-                        />
-                      </Box>
                       <Box className="flex-1">
                         <Text className="text-xs text-typography-500 mb-1">Reps</Text>
                         <TextInput
@@ -637,23 +753,23 @@ export default function TrainScreen() {
                           style={inputStyle}
                         />
                       </Box>
-                    </Box>
-                    <Box className="flex-row gap-2">
                       <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Rest (s)</Text>
+                        <Text className="text-xs text-typography-500 mb-1">Sets</Text>
                         <TextInput
                           placeholder="—"
                           placeholderTextColor={colors.textMuted}
-                          value={overrideDraft.restSeconds}
+                          value={overrideDraft.sets}
                           onChangeText={(value) =>
-                            updateSessionDraft(overrideSession._id, { restSeconds: value })
+                            updateSessionDraft(overrideSession._id, { sets: value })
                           }
                           keyboardType="numeric"
                           style={inputStyle}
                         />
                       </Box>
+                    </Box>
+                    <Box className="flex-row gap-2">
                       <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Duration (s)</Text>
+                        <Text className="text-xs text-typography-500 mb-1">Rep duration (s)</Text>
                         <TextInput
                           placeholder="—"
                           placeholderTextColor={colors.textMuted}
@@ -666,12 +782,160 @@ export default function TrainScreen() {
                         />
                       </Box>
                     </Box>
+                    <Box className="flex-row gap-2">
+                      <Box className="flex-1">
+                        <Text className="text-xs text-typography-500 mb-1">
+                          Rest between reps (s)
+                        </Text>
+                        <TextInput
+                          placeholder="—"
+                          placeholderTextColor={colors.textMuted}
+                          value={overrideDraft.restSeconds}
+                          onChangeText={(value) =>
+                            updateSessionDraft(overrideSession._id, { restSeconds: value })
+                          }
+                          keyboardType="numeric"
+                          style={inputStyle}
+                        />
+                      </Box>
+                      <Box className="flex-1">
+                        <Text className="text-xs text-typography-500 mb-1">
+                          Rest between sets (s)
+                        </Text>
+                        <TextInput
+                          placeholder="Defaults to rep rest"
+                          placeholderTextColor={colors.textMuted}
+                          value={overrideDraft.restBetweenSetsSeconds}
+                          onChangeText={(value) =>
+                            updateSessionDraft(overrideSession._id, {
+                              restBetweenSetsSeconds: value,
+                            })
+                          }
+                          keyboardType="numeric"
+                          style={inputStyle}
+                        />
+                      </Box>
+                    </Box>
                   </Box>
 
-                  <Box className="gap-2">
-                    <Text className="text-xs font-semibold text-typography-400 uppercase tracking-wide">
-                      Load
+                  {overrideSession.snapshot.trainingType === "hang" ? (
+                    <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
+                      <Text className="text-base font-semibold text-typography-900">
+                        Hang Details
+                      </Text>
+                      <Box className="flex-row gap-2">
+                        {HANG_EQUIPMENT_OPTIONS.map((option) => (
+                          <Pressable
+                            key={option}
+                            disabled
+                            style={{
+                              flex: 1,
+                              paddingVertical: 10,
+                              borderRadius: 12,
+                              alignItems: "center",
+                              backgroundColor:
+                                overrideSession.snapshot.hangDetails?.apparatus === option
+                                  ? colors.primary
+                                  : colors.borderLight,
+                              opacity: 0.6,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                color:
+                                  overrideSession.snapshot.hangDetails?.apparatus === option
+                                    ? "#fff"
+                                    : colors.text,
+                                fontSize: 13,
+                                fontWeight: "600",
+                              }}
+                            >
+                              {option}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </Box>
+                      {overrideSession.snapshot.hangDetails?.apparatus === "fingerboard" ? (
+                        <>
+                          <Box className="flex-row gap-2 flex-wrap">
+                            {HANG_EDGE_MM_OPTIONS.map((edge) => (
+                              <Pressable
+                                key={edge}
+                                disabled
+                                style={{
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 8,
+                                  borderRadius: 999,
+                                  backgroundColor:
+                                    overrideSession.snapshot.hangDetails?.edgeSizeMm === edge
+                                      ? colors.primary
+                                      : colors.borderLight,
+                                  opacity: 0.6,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color:
+                                      overrideSession.snapshot.hangDetails?.edgeSizeMm === edge
+                                        ? "#fff"
+                                        : colors.text,
+                                    fontSize: 12,
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {edge}mm
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </Box>
+                          <Box className="flex-row gap-2 flex-wrap">
+                            {HANG_CRIMP_TYPES.map((crimp) => (
+                              <Pressable
+                                key={crimp}
+                                disabled
+                                style={{
+                                  paddingHorizontal: 12,
+                                  paddingVertical: 8,
+                                  borderRadius: 999,
+                                  backgroundColor:
+                                    overrideSession.snapshot.hangDetails?.crimpType === crimp
+                                      ? colors.primary
+                                      : colors.borderLight,
+                                  opacity: 0.6,
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color:
+                                      overrideSession.snapshot.hangDetails?.crimpType === crimp
+                                        ? "#fff"
+                                        : colors.text,
+                                    fontSize: 12,
+                                    fontWeight: "600",
+                                  }}
+                                >
+                                  {crimp}
+                                </Text>
+                              </Pressable>
+                            ))}
+                          </Box>
+                        </>
+                      ) : null}
+                      <OverrideUnavailableOverlay />
+                    </Box>
+                  ) : null}
+
+                  <Box style={sectionCardStyle}>
+                    <Text className="text-base font-semibold text-typography-900">Load</Text>
+                    <Text className="text-xs text-typography-500">
+                      Usually for hang exercises: 100% means no extra weight, 80% means assisted,
+                      and 120% means added weight.
                     </Text>
+                    {profile?.bodyWeightKg ? (
+                      <Text className="text-xs text-typography-500">
+                        Your body weight: {profile.bodyWeightKg}kg
+                      </Text>
+                    ) : null}
                     <Box className="flex-row gap-2">
                       <Pressable
                         onPress={() =>
@@ -740,6 +1004,43 @@ export default function TrainScreen() {
                     />
                   </Box>
 
+                  <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
+                    <Text className="text-base font-semibold text-typography-900">
+                      Equipment & Tags
+                    </Text>
+                    <Box className="flex-row flex-wrap gap-2">
+                      {overrideSession.snapshot.equipment.length > 0 ? (
+                        overrideSession.snapshot.equipment.map((entry: string) => (
+                          <Box
+                            key={entry}
+                            className="rounded-full px-2.5 py-1"
+                            style={{ backgroundColor: colors.borderLight, opacity: 0.6 }}
+                          >
+                            <Text className="text-xs text-typography-600">{entry}</Text>
+                          </Box>
+                        ))
+                      ) : (
+                        <Text className="text-xs text-typography-500">No equipment tags</Text>
+                      )}
+                    </Box>
+                    <Box className="flex-row flex-wrap gap-2">
+                      {overrideSession.snapshot.tags.length > 0 ? (
+                        overrideSession.snapshot.tags.map((tag: string) => (
+                          <Box
+                            key={tag}
+                            className="rounded-full px-2.5 py-1"
+                            style={{ backgroundColor: colors.borderLight, opacity: 0.6 }}
+                          >
+                            <Text className="text-xs text-typography-600">{tag}</Text>
+                          </Box>
+                        ))
+                      ) : (
+                        <Text className="text-xs text-typography-500">No tags</Text>
+                      )}
+                    </Box>
+                    <OverrideUnavailableOverlay />
+                  </Box>
+
                   <Box className="gap-2">
                     <Button
                       className="rounded-xl"
@@ -778,42 +1079,73 @@ export default function TrainScreen() {
                       </ButtonText>
                     </Button>
                     {overrideSession.recurrenceRuleId ? (
-                      <Button
-                        variant="outline"
-                        className="rounded-xl"
-                        disabled={isSavingOverride}
-                        onPress={async () => {
-                          setOverrideError(null);
-                          const overrides = draftToOverrides(overrideDraft);
-                          if (!overrides) {
-                            setOverrideError(
-                              "Body weight is required before saving kg loads. Add body weight in Profile or switch to % bodyweight.",
-                            );
-                            return;
-                          }
-                          setIsSavingOverride(true);
-                          try {
-                            await updateRecurringRuleFuture({
-                              ruleId: overrideSession.recurrenceRuleId!,
-                              effectiveFrom: overrideSession.scheduledFor,
-                              overrides,
-                            });
-                            setOverrideSessionId(null);
-                            showSuccessToast("Future sessions updated.");
-                          } catch (saveError) {
-                            const message = showErrorMessage(
-                              saveError,
-                              "Could not save recurring overrides.",
-                            );
-                            setOverrideError(message);
-                            showErrorToast("Could not save recurring override", message);
-                          } finally {
-                            setIsSavingOverride(false);
-                          }
-                        }}
-                      >
-                        <ButtonText>Save for this and future sessions</ButtonText>
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={isSavingOverride}
+                          onPress={async () => {
+                            setOverrideError(null);
+                            const overrides = draftToOverrides(overrideDraft);
+                            if (!overrides) {
+                              setOverrideError(
+                                "Body weight is required before saving kg loads. Add body weight in Profile or switch to % bodyweight.",
+                              );
+                              return;
+                            }
+                            setIsSavingOverride(true);
+                            try {
+                              await updateRecurringRuleFuture({
+                                ruleId: overrideSession.recurrenceRuleId!,
+                                effectiveFrom: overrideSession.scheduledFor,
+                                overrides,
+                              });
+                              setOverrideSessionId(null);
+                              showSuccessToast("Future sessions updated.");
+                            } catch (saveError) {
+                              const message = showErrorMessage(
+                                saveError,
+                                "Could not save recurring overrides.",
+                              );
+                              setOverrideError(message);
+                              showErrorToast("Could not save recurring override", message);
+                            } finally {
+                              setIsSavingOverride(false);
+                            }
+                          }}
+                        >
+                          <ButtonText>Save for this and future sessions</ButtonText>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          action="negative"
+                          className="rounded-xl"
+                          disabled={isSavingOverride}
+                          onPress={async () => {
+                            setOverrideError(null);
+                            setIsSavingOverride(true);
+                            try {
+                              await removeRecurringRuleFuture({
+                                ruleId: overrideSession.recurrenceRuleId! as never,
+                                effectiveFrom: overrideSession.scheduledFor,
+                              });
+                              setOverrideSessionId(null);
+                              showSuccessToast("Recurring sessions deleted.");
+                            } catch (removeError) {
+                              const message = showErrorMessage(
+                                removeError,
+                                "Could not delete recurring sessions.",
+                              );
+                              setOverrideError(message);
+                              showErrorToast("Could not delete recurring sessions", message);
+                            } finally {
+                              setIsSavingOverride(false);
+                            }
+                          }}
+                        >
+                          <ButtonText>Delete this and future sessions</ButtonText>
+                        </Button>
+                      </>
                     ) : null}
                     <Button
                       variant="outline"

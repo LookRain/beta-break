@@ -38,6 +38,7 @@ export default defineSchema({
       reps: v.optional(v.number()),
       sets: v.optional(v.number()),
       restSeconds: v.optional(v.number()),
+      restBetweenSetsSeconds: v.optional(v.number()),
       durationSeconds: v.optional(v.number()),
     }),
     trainingType: v.optional(
@@ -52,27 +53,13 @@ export default defineSchema({
       v.object({
         apparatus: v.union(v.literal("fingerboard"), v.literal("bar")),
         edgeSizeMm: v.optional(
-          v.union(
-            v.literal(8),
-            v.literal(10),
-            v.literal(15),
-            v.literal(20),
-            v.literal(25),
-          ),
+          v.union(v.literal(8), v.literal(10), v.literal(15), v.literal(20), v.literal(25)),
         ),
-        crimpType: v.optional(
-          v.union(v.literal("open"), v.literal("half"), v.literal("full")),
-        ),
-        loadPreference: v.optional(
-          v.union(v.literal("below_100"), v.literal("above_100")),
-        ),
+        crimpType: v.optional(v.union(v.literal("open"), v.literal("half"), v.literal("full"))),
+        loadPreference: v.optional(v.union(v.literal("below_100"), v.literal("above_100"))),
       }),
     ),
-    difficulty: v.union(
-      v.literal("beginner"),
-      v.literal("intermediate"),
-      v.literal("advanced"),
-    ),
+    difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
     equipment: v.array(v.string()),
     status: v.union(v.literal("draft"), v.literal("published")),
     publishedAt: v.optional(v.number()),
@@ -114,33 +101,20 @@ export default defineSchema({
         v.object({
           apparatus: v.union(v.literal("fingerboard"), v.literal("bar")),
           edgeSizeMm: v.optional(
-            v.union(
-              v.literal(8),
-              v.literal(10),
-              v.literal(15),
-              v.literal(20),
-              v.literal(25),
-            ),
+            v.union(v.literal(8), v.literal(10), v.literal(15), v.literal(20), v.literal(25)),
           ),
-          crimpType: v.optional(
-            v.union(v.literal("open"), v.literal("half"), v.literal("full")),
-          ),
-          loadPreference: v.optional(
-            v.union(v.literal("below_100"), v.literal("above_100")),
-          ),
+          crimpType: v.optional(v.union(v.literal("open"), v.literal("half"), v.literal("full"))),
+          loadPreference: v.optional(v.union(v.literal("below_100"), v.literal("above_100"))),
         }),
       ),
-      difficulty: v.union(
-        v.literal("beginner"),
-        v.literal("intermediate"),
-        v.literal("advanced"),
-      ),
+      difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
       equipment: v.array(v.string()),
       variables: v.object({
         weight: v.optional(v.number()),
         reps: v.optional(v.number()),
         sets: v.optional(v.number()),
         restSeconds: v.optional(v.number()),
+        restBetweenSetsSeconds: v.optional(v.number()),
         durationSeconds: v.optional(v.number()),
       }),
     }),
@@ -149,6 +123,7 @@ export default defineSchema({
       reps: v.optional(v.number()),
       sets: v.optional(v.number()),
       restSeconds: v.optional(v.number()),
+      restBetweenSetsSeconds: v.optional(v.number()),
       durationSeconds: v.optional(v.number()),
     }),
     notes: v.optional(v.string()),
@@ -185,33 +160,20 @@ export default defineSchema({
         v.object({
           apparatus: v.union(v.literal("fingerboard"), v.literal("bar")),
           edgeSizeMm: v.optional(
-            v.union(
-              v.literal(8),
-              v.literal(10),
-              v.literal(15),
-              v.literal(20),
-              v.literal(25),
-            ),
+            v.union(v.literal(8), v.literal(10), v.literal(15), v.literal(20), v.literal(25)),
           ),
-          crimpType: v.optional(
-            v.union(v.literal("open"), v.literal("half"), v.literal("full")),
-          ),
-          loadPreference: v.optional(
-            v.union(v.literal("below_100"), v.literal("above_100")),
-          ),
+          crimpType: v.optional(v.union(v.literal("open"), v.literal("half"), v.literal("full"))),
+          loadPreference: v.optional(v.union(v.literal("below_100"), v.literal("above_100"))),
         }),
       ),
-      difficulty: v.union(
-        v.literal("beginner"),
-        v.literal("intermediate"),
-        v.literal("advanced"),
-      ),
+      difficulty: v.union(v.literal("beginner"), v.literal("intermediate"), v.literal("advanced")),
       equipment: v.array(v.string()),
       variables: v.object({
         weight: v.optional(v.number()),
         reps: v.optional(v.number()),
         sets: v.optional(v.number()),
         restSeconds: v.optional(v.number()),
+        restBetweenSetsSeconds: v.optional(v.number()),
         durationSeconds: v.optional(v.number()),
       }),
     }),
@@ -220,6 +182,7 @@ export default defineSchema({
       reps: v.optional(v.number()),
       sets: v.optional(v.number()),
       restSeconds: v.optional(v.number()),
+      restBetweenSetsSeconds: v.optional(v.number()),
       durationSeconds: v.optional(v.number()),
     }),
     notes: v.optional(v.string()),
@@ -240,6 +203,7 @@ export default defineSchema({
       sets: v.optional(v.number()),
       reps: v.optional(v.number()),
       restSeconds: v.optional(v.number()),
+      restBetweenSetsSeconds: v.optional(v.number()),
       durationSeconds: v.optional(v.number()),
     }),
     summary: v.object({

@@ -7,6 +7,7 @@ const variablesValidator = v.object({
   reps: v.optional(v.number()),
   sets: v.optional(v.number()),
   restSeconds: v.optional(v.number()),
+  restBetweenSetsSeconds: v.optional(v.number()),
   durationSeconds: v.optional(v.number()),
 });
 
