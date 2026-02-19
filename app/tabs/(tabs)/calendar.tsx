@@ -224,6 +224,7 @@ export default function CalendarScreen() {
   const addRecurringSeries = useMutation(api.trainingSchedule.addRecurringSeries);
   const updateUpcomingSession = useMutation(api.trainingSchedule.updateUpcomingSession);
   const updateRecurringRuleFuture = useMutation(api.trainingSchedule.updateRecurringRuleFuture);
+  const removeRecurringRuleFuture = useMutation(api.trainingSchedule.removeRecurringRuleFuture);
   const removeUpcomingSession = useMutation(api.trainingSchedule.removeUpcomingSession);
   const completeSession = useMutation(api.trainingSchedule.completeSession);
 
@@ -466,6 +467,22 @@ export default function CalendarScreen() {
     [removeUpcomingSession, showErrorToast, showSuccessToast],
   );
 
+  const handleRemoveRecurringFuture = React.useCallback(
+    async (ruleId: string, effectiveFrom: number) => {
+      try {
+        await removeRecurringRuleFuture({
+          ruleId: ruleId as never,
+          effectiveFrom,
+        });
+        showSuccessToast("Recurring sessions deleted.");
+      } catch (removeError) {
+        const message = showErrorMessage(removeError, "Could not delete recurring sessions.");
+        showErrorToast("Could not delete recurring sessions", message);
+      }
+    },
+    [removeRecurringRuleFuture, showErrorToast, showSuccessToast],
+  );
+
   const onAdd = async () => {
     if (!selectedItemId) {
       setError("Select an exercise first.");
@@ -663,8 +680,27 @@ export default function CalendarScreen() {
                           onPress={() => void handleRemoveUpcomingSession(session._id)}
                         >
                           <Trash2 size={12} color={colors.error} strokeWidth={2} />
-                          <ButtonText className="text-xs">Remove</ButtonText>
+                          <ButtonText className="text-xs">
+                            {session.recurrenceRuleId ? "Remove once" : "Remove"}
+                          </ButtonText>
                         </Button>
+                        {session.recurrenceRuleId ? (
+                          <Button
+                            size="sm"
+                            action="negative"
+                            variant="outline"
+                            className="rounded-xl"
+                            onPress={() =>
+                              void handleRemoveRecurringFuture(
+                                session.recurrenceRuleId!,
+                                session.scheduledFor,
+                              )
+                            }
+                          >
+                            <Trash2 size={12} color={colors.error} strokeWidth={2} />
+                            <ButtonText className="text-xs">Delete this & future</ButtonText>
+                          </Button>
+                        ) : null}
                       </Box>
                     ) : null
                   }
@@ -1369,42 +1405,73 @@ export default function CalendarScreen() {
                       </ButtonText>
                     </Button>
                     {overrideSession.recurrenceRuleId ? (
-                      <Button
-                        variant="outline"
-                        className="rounded-xl"
-                        disabled={isSavingOverride}
-                        onPress={async () => {
-                          setOverrideError(null);
-                          const overrides = draftToOverrides(overrideDraft);
-                          if (!overrides) {
-                            setOverrideError(
-                              "Body weight is required before saving kg loads. Add body weight in Profile or switch to % bodyweight.",
-                            );
-                            return;
-                          }
-                          setIsSavingOverride(true);
-                          try {
-                            await updateRecurringRuleFuture({
-                              ruleId: overrideSession.recurrenceRuleId!,
-                              effectiveFrom: overrideSession.scheduledFor,
-                              overrides,
-                            });
-                            setOverrideSessionId(null);
-                            showSuccessToast("Future sessions updated.");
-                          } catch (saveError) {
-                            const message = showErrorMessage(
-                              saveError,
-                              "Could not save recurring overrides.",
-                            );
-                            setOverrideError(message);
-                            showErrorToast("Could not save recurring override", message);
-                          } finally {
-                            setIsSavingOverride(false);
-                          }
-                        }}
-                      >
-                        <ButtonText>Save for this and future sessions</ButtonText>
-                      </Button>
+                      <>
+                        <Button
+                          variant="outline"
+                          className="rounded-xl"
+                          disabled={isSavingOverride}
+                          onPress={async () => {
+                            setOverrideError(null);
+                            const overrides = draftToOverrides(overrideDraft);
+                            if (!overrides) {
+                              setOverrideError(
+                                "Body weight is required before saving kg loads. Add body weight in Profile or switch to % bodyweight.",
+                              );
+                              return;
+                            }
+                            setIsSavingOverride(true);
+                            try {
+                              await updateRecurringRuleFuture({
+                                ruleId: overrideSession.recurrenceRuleId!,
+                                effectiveFrom: overrideSession.scheduledFor,
+                                overrides,
+                              });
+                              setOverrideSessionId(null);
+                              showSuccessToast("Future sessions updated.");
+                            } catch (saveError) {
+                              const message = showErrorMessage(
+                                saveError,
+                                "Could not save recurring overrides.",
+                              );
+                              setOverrideError(message);
+                              showErrorToast("Could not save recurring override", message);
+                            } finally {
+                              setIsSavingOverride(false);
+                            }
+                          }}
+                        >
+                          <ButtonText>Save for this and future sessions</ButtonText>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          action="negative"
+                          className="rounded-xl"
+                          disabled={isSavingOverride}
+                          onPress={async () => {
+                            setOverrideError(null);
+                            setIsSavingOverride(true);
+                            try {
+                              await removeRecurringRuleFuture({
+                                ruleId: overrideSession.recurrenceRuleId! as never,
+                                effectiveFrom: overrideSession.scheduledFor,
+                              });
+                              setOverrideSessionId(null);
+                              showSuccessToast("Recurring sessions deleted.");
+                            } catch (removeError) {
+                              const message = showErrorMessage(
+                                removeError,
+                                "Could not delete recurring sessions.",
+                              );
+                              setOverrideError(message);
+                              showErrorToast("Could not delete recurring sessions", message);
+                            } finally {
+                              setIsSavingOverride(false);
+                            }
+                          }}
+                        >
+                          <ButtonText>Delete this and future sessions</ButtonText>
+                        </Button>
+                      </>
                     ) : null}
                     <Button
                       variant="outline"
