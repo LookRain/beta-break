@@ -1,6 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
 import { useMutation, useQuery } from "convex/react";
 import { Text } from "@/components/ui/text";
 import { api } from "@/convex/_generated/api";
@@ -83,6 +84,7 @@ const TRAINING_TYPE_LABEL: Record<string, string> = {
 };
 
 export default function TimerScreen() {
+  useKeepAwake();
   const getNowMs = React.useCallback(
     () => (typeof performance !== "undefined" ? performance.now() : Date.now()),
     [],
@@ -601,6 +603,53 @@ export default function TimerScreen() {
     setPausedRemainingMs(null);
   };
 
+  const jumpToRep = React.useCallback(
+    (targetSet: number, targetRep: number) => {
+      if (phase !== "rep" && phase !== "rest") return;
+      const nextSet = Math.min(Math.max(1, targetSet), plannedSets);
+      const nextRep = Math.min(Math.max(1, targetRep), plannedReps);
+      setError(null);
+      setCurrentSet(nextSet);
+      setCurrentRep(nextRep);
+      setPhaseRunning("rep", plannedRepDurationSeconds);
+    },
+    [phase, plannedRepDurationSeconds, plannedReps, plannedSets, setPhaseRunning],
+  );
+
+  const goToPreviousRep = () => {
+    if (phase !== "rep" && phase !== "rest") return;
+    if (currentRep > 1) {
+      jumpToRep(currentSet, currentRep - 1);
+      return;
+    }
+    if (currentSet > 1) {
+      jumpToRep(currentSet - 1, plannedReps);
+    }
+  };
+
+  const goToNextRep = () => {
+    if (phase !== "rep" && phase !== "rest") return;
+    if (currentRep < plannedReps) {
+      jumpToRep(currentSet, currentRep + 1);
+      return;
+    }
+    if (currentSet < plannedSets) {
+      jumpToRep(currentSet + 1, 1);
+    }
+  };
+
+  const goToPreviousSet = () => {
+    if (phase !== "rep" && phase !== "rest") return;
+    if (currentSet <= 1) return;
+    jumpToRep(currentSet - 1, Math.min(currentRep, plannedReps));
+  };
+
+  const goToNextSet = () => {
+    if (phase !== "rep" && phase !== "rest") return;
+    if (currentSet >= plannedSets) return;
+    jumpToRep(currentSet + 1, Math.min(currentRep, plannedReps));
+  };
+
   const skipSet = async () => {
     if (!logId || transitioningRef.current || phase === "completed" || phase === "prep") return;
     transitioningRef.current = true;
@@ -654,6 +703,7 @@ export default function TimerScreen() {
   const theme = PHASE_THEME[phase];
   const isPaused = pausedRemainingMs !== null;
   const showReadyGate = isPrep && awaitingStart;
+  const canJumpBetweenSteps = phase === "rep" || phase === "rest";
   const totalCycles = plannedSets * plannedReps;
   const completedCycles = isCompleted
     ? totalCycles
@@ -708,7 +758,11 @@ export default function TimerScreen() {
   const currentExerciseTypeLabel = session?.snapshot.trainingType
     ? TRAINING_TYPE_LABEL[session.snapshot.trainingType]
     : "Not set";
-  const currentExerciseCategory = session?.snapshot.category || "Not set";
+  const currentExerciseCategory =
+    session?.snapshot.categories?.length &&
+    session.snapshot.categories.some((entry) => !!entry.trim())
+      ? session.snapshot.categories.join(", ")
+      : session?.snapshot.category || "Not set";
   const currentExerciseTags = session?.snapshot.tags.length
     ? session.snapshot.tags.join(", ")
     : "None";
@@ -900,25 +954,76 @@ export default function TimerScreen() {
               <Text style={styles.secondaryActionBtnText}>Cancel session</Text>
             </Pressable>
           ) : (
-            <View style={styles.controlsRow}>
-              <Pressable onPress={() => void skipSet()} style={styles.secondaryBtn}>
-                <SkipForward size={22} color="rgba(255,255,255,0.6)" strokeWidth={2} />
-              </Pressable>
+            <View style={styles.controlsGroup}>
+              <View style={styles.stepNavRow}>
+                <Pressable
+                  onPress={goToPreviousSet}
+                  disabled={!canJumpBetweenSteps || currentSet <= 1}
+                  style={[
+                    styles.stepNavBtn,
+                    (!canJumpBetweenSteps || currentSet <= 1) && styles.stepNavBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.stepNavBtnText}>Prev Set</Text>
+                </Pressable>
+                <Pressable
+                  onPress={goToPreviousRep}
+                  disabled={!canJumpBetweenSteps || (currentSet <= 1 && currentRep <= 1)}
+                  style={[
+                    styles.stepNavBtn,
+                    (!canJumpBetweenSteps || (currentSet <= 1 && currentRep <= 1)) &&
+                      styles.stepNavBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.stepNavBtnText}>Prev Rep</Text>
+                </Pressable>
+                <Pressable
+                  onPress={goToNextRep}
+                  disabled={
+                    !canJumpBetweenSteps || (currentSet >= plannedSets && currentRep >= plannedReps)
+                  }
+                  style={[
+                    styles.stepNavBtn,
+                    (!canJumpBetweenSteps ||
+                      (currentSet >= plannedSets && currentRep >= plannedReps)) &&
+                      styles.stepNavBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.stepNavBtnText}>Next Rep</Text>
+                </Pressable>
+                <Pressable
+                  onPress={goToNextSet}
+                  disabled={!canJumpBetweenSteps || currentSet >= plannedSets}
+                  style={[
+                    styles.stepNavBtn,
+                    (!canJumpBetweenSteps || currentSet >= plannedSets) &&
+                      styles.stepNavBtnDisabled,
+                  ]}
+                >
+                  <Text style={styles.stepNavBtnText}>Next Set</Text>
+                </Pressable>
+              </View>
 
-              <Pressable
-                onPress={pauseOrResume}
-                style={[styles.playBtn, { backgroundColor: theme.accent }]}
-              >
-                {isPaused ? (
-                  <Play size={30} color="#fff" strokeWidth={2.5} fill="#fff" />
-                ) : (
-                  <Pause size={30} color="#fff" strokeWidth={2.5} />
-                )}
-              </Pressable>
+              <View style={styles.controlsRow}>
+                <Pressable onPress={() => void skipSet()} style={styles.secondaryBtn}>
+                  <SkipForward size={22} color="rgba(255,255,255,0.6)" strokeWidth={2} />
+                </Pressable>
 
-              <Pressable onPress={() => void stopEarly()} style={styles.secondaryBtn}>
-                <X size={22} color="#ef4444" strokeWidth={2.5} />
-              </Pressable>
+                <Pressable
+                  onPress={pauseOrResume}
+                  style={[styles.playBtn, { backgroundColor: theme.accent }]}
+                >
+                  {isPaused ? (
+                    <Play size={30} color="#fff" strokeWidth={2.5} fill="#fff" />
+                  ) : (
+                    <Pause size={30} color="#fff" strokeWidth={2.5} />
+                  )}
+                </Pressable>
+
+                <Pressable onPress={() => void stopEarly()} style={styles.secondaryBtn}>
+                  <X size={22} color="#ef4444" strokeWidth={2.5} />
+                </Pressable>
+              </View>
             </View>
           )}
 
@@ -1090,6 +1195,27 @@ const styles = StyleSheet.create({
   },
 
   footer: { gap: 16 },
+  controlsGroup: { gap: 12 },
+  stepNavRow: { flexDirection: "row", gap: 8, justifyContent: "center" },
+  stepNavBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  stepNavBtnDisabled: {
+    opacity: 0.4,
+  },
+  stepNavBtnText: {
+    color: "rgba(255,255,255,0.85)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
   controlsRow: { flexDirection: "row", gap: 16, justifyContent: "center", alignItems: "center" },
   secondaryBtn: {
     width: 56,

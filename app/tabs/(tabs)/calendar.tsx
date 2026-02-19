@@ -1032,7 +1032,12 @@ export default function CalendarScreen() {
                     />
                     <TextInput
                       editable={false}
-                      value={overrideSession.snapshot.category || "Not set"}
+                      value={
+                        overrideSession.snapshot.categories?.length &&
+                        overrideSession.snapshot.categories.some((entry: string) => !!entry.trim())
+                          ? overrideSession.snapshot.categories.join(", ")
+                          : overrideSession.snapshot.category || "Not set"
+                      }
                       style={{ ...inputStyle, color: colors.textMuted }}
                     />
                     <TextInput

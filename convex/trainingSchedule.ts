@@ -194,6 +194,10 @@ export const addSession = mutationGeneric({
         title: item.title,
         description: item.description,
         category: item.category,
+        categories:
+          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
+            ? item.categories
+            : [item.category],
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,
@@ -236,6 +240,10 @@ export const startImpromptuSession = mutationGeneric({
         title: item.title,
         description: item.description,
         category: item.category,
+        categories:
+          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
+            ? item.categories
+            : [item.category],
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,
@@ -291,6 +299,10 @@ export const addRecurringSeries = mutationGeneric({
         title: item.title,
         description: item.description,
         category: item.category,
+        categories:
+          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
+            ? item.categories
+            : [item.category],
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,

@@ -39,7 +39,8 @@ import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 type TrainingItemFormValues = {
   title: string;
   description?: string;
-  category: string;
+  category?: string;
+  categories?: string[];
   tags: string[];
   variables: {
     weight?: number;
@@ -140,9 +141,33 @@ export function TrainingItemForm({
   const router = useRouter();
   const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const profile = useQuery(api.profiles.getMyProfile);
-  const initialCategory = initialValues?.category ?? TRAINING_CATEGORIES[0];
-  const initialUsesCustomCategory = !TRAINING_CATEGORIES.includes(
-    initialCategory as (typeof TRAINING_CATEGORIES)[number],
+  const initialCategories = React.useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            ...(initialValues?.categories ?? []),
+            ...(initialValues?.category ? [initialValues.category] : []),
+          ]
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0),
+        ),
+      ),
+    [initialValues?.categories, initialValues?.category],
+  );
+  const initialPresetCategories = React.useMemo(
+    () =>
+      initialCategories.filter((entry) =>
+        TRAINING_CATEGORIES.includes(entry as (typeof TRAINING_CATEGORIES)[number]),
+      ),
+    [initialCategories],
+  );
+  const initialCustomCategories = React.useMemo(
+    () =>
+      initialCategories.filter(
+        (entry) => !TRAINING_CATEGORIES.includes(entry as (typeof TRAINING_CATEGORIES)[number]),
+      ),
+    [initialCategories],
   );
   const initialCustomEquipment = (initialValues?.equipment ?? [])
     .filter(
@@ -152,12 +177,10 @@ export function TrainingItemForm({
     .join(", ");
   const [title, setTitle] = React.useState(initialValues?.title ?? "");
   const [description, setDescription] = React.useState(initialValues?.description ?? "");
-  const [selectedCategory, setSelectedCategory] = React.useState(
-    initialUsesCustomCategory ? TRAINING_CATEGORIES[0] : initialCategory,
-  );
-  const [isCustomCategory, setIsCustomCategory] = React.useState(initialUsesCustomCategory);
-  const [customCategory, setCustomCategory] = React.useState(
-    initialUsesCustomCategory ? initialCategory : "",
+  const [selectedCategories, setSelectedCategories] =
+    React.useState<string[]>(initialPresetCategories);
+  const [customCategoriesInput, setCustomCategoriesInput] = React.useState(
+    toCommaSeparated(initialCustomCategories),
   );
   const [tagsInput, setTagsInput] = React.useState(toCommaSeparated(initialValues?.tags ?? []));
   const [trainingType, setTrainingType] = React.useState<TrainingType | undefined>(
@@ -197,6 +220,9 @@ export function TrainingItemForm({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [showTagsField, setShowTagsField] = React.useState(Boolean(initialValues?.tags?.length));
+  const [showCustomCategoryField, setShowCustomCategoryField] = React.useState(
+    Boolean(initialCustomCategories.length),
+  );
   const [showCustomEquipmentField, setShowCustomEquipmentField] = React.useState(
     Boolean(initialCustomEquipment),
   );
@@ -214,9 +240,15 @@ export function TrainingItemForm({
   };
 
   const handleSubmit = async () => {
-    const finalCategory = isCustomCategory ? customCategory.trim() : selectedCategory.trim();
-    if (!title.trim() || !finalCategory) {
-      setError("Title and category are required.");
+    const finalCategories = Array.from(
+      new Set(
+        [...selectedCategories, ...parseCommaSeparated(customCategoriesInput)]
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0),
+      ),
+    );
+    if (!title.trim() || finalCategories.length === 0) {
+      setError("Title and at least one category are required.");
       return;
     }
     const parsedWeight = parseOptionalNumber(weight);
@@ -255,7 +287,8 @@ export function TrainingItemForm({
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        category: finalCategory,
+        category: finalCategories[0],
+        categories: finalCategories,
         tags: parseCommaSeparated(tagsInput),
         trainingType,
         hangDetails:
@@ -350,17 +383,20 @@ export function TrainingItemForm({
               </SelectPortal>
             </Select>
             <Box className="gap-2">
-              <Text className="text-xs font-medium text-typography-600">Category *</Text>
+              <Text className="text-xs font-medium text-typography-600">Categories *</Text>
               <Box className="flex-row flex-wrap gap-2">
                 {TRAINING_CATEGORIES.map((presetCategory) => {
-                  const isActive = !isCustomCategory && selectedCategory === presetCategory;
+                  const isActive = selectedCategories.includes(presetCategory);
                   return (
                     <Pressable
                       key={presetCategory}
                       onPress={() => {
                         if (disabled) return;
-                        setSelectedCategory(presetCategory);
-                        setIsCustomCategory(false);
+                        setSelectedCategories((prev) =>
+                          prev.includes(presetCategory)
+                            ? prev.filter((entry) => entry !== presetCategory)
+                            : [...prev, presetCategory],
+                        );
                       }}
                       style={{
                         paddingHorizontal: 12,
@@ -383,33 +419,33 @@ export function TrainingItemForm({
                   );
                 })}
                 <Pressable
-                  onPress={() => !disabled && setIsCustomCategory(true)}
+                  onPress={() => !disabled && setShowCustomCategoryField((prev) => !prev)}
                   style={{
                     paddingHorizontal: 12,
                     paddingVertical: 8,
                     borderRadius: 999,
-                    backgroundColor: isCustomCategory ? colors.primary : colors.borderLight,
+                    backgroundColor: showCustomCategoryField ? colors.primary : colors.borderLight,
                     opacity: disabled ? 0.6 : 1,
                   }}
                 >
                   <Text
                     style={{
-                      color: isCustomCategory ? "#fff" : colors.text,
+                      color: showCustomCategoryField ? "#fff" : colors.text,
                       fontSize: 12,
                       fontWeight: "600",
                     }}
                   >
-                    Other
+                    {showCustomCategoryField ? "Hide custom" : "+ Custom"}
                   </Text>
                 </Pressable>
               </Box>
-              {isCustomCategory ? (
+              {showCustomCategoryField ? (
                 <TextInput
                   editable={!disabled}
-                  placeholder="Custom category"
+                  placeholder="Custom categories (comma separated)"
                   placeholderTextColor={colors.textMuted}
-                  value={customCategory}
-                  onChangeText={setCustomCategory}
+                  value={customCategoriesInput}
+                  onChangeText={setCustomCategoriesInput}
                   style={inputStyle}
                 />
               ) : null}
