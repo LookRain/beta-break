@@ -1,5 +1,12 @@
 import React from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput } from "react-native";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
@@ -266,8 +273,19 @@ export default function CalendarScreen() {
     return Array.from(byId.values());
   }, [myItems, savedItems]);
 
-  const sessions = sessionsResult?.sessions ?? [];
-  const serverToday = sessionsResult?.today ?? dayStringToTimestamp(todayStr);
+  // Keep previous month data visible while the next month is loading.
+  const latestSessionsResultRef = React.useRef(sessionsResult);
+  React.useEffect(() => {
+    if (sessionsResult !== undefined) {
+      latestSessionsResultRef.current = sessionsResult;
+    }
+  }, [sessionsResult]);
+  const stableSessionsResult = sessionsResult ?? latestSessionsResultRef.current;
+  const isMonthSwitchLoading =
+    sessionsResult === undefined && latestSessionsResultRef.current !== undefined;
+
+  const sessions = stableSessionsResult?.sessions ?? [];
+  const serverToday = stableSessionsResult?.today ?? dayStringToTimestamp(todayStr);
 
   React.useEffect(() => {
     setEditDrafts((prev) => {
@@ -487,7 +505,7 @@ export default function CalendarScreen() {
     }
   };
 
-  if (myItems === undefined || savedItems === undefined || sessionsResult === undefined) {
+  if (myItems === undefined || savedItems === undefined || stableSessionsResult === undefined) {
     return (
       <Box className="flex-1 items-center justify-center">
         <Text className="text-typography-500">Loading calendar...</Text>
@@ -532,7 +550,12 @@ export default function CalendarScreen() {
 
           <Box
             className="rounded-2xl overflow-hidden"
-            style={{ ...cardShadow, backgroundColor: colors.bgCard, padding: 8 }}
+            style={{
+              ...cardShadow,
+              backgroundColor: colors.bgCard,
+              padding: 8,
+              position: "relative",
+            }}
           >
             <Calendar
               current={visibleMonth}
@@ -541,6 +564,20 @@ export default function CalendarScreen() {
               markedDates={markedDates}
               theme={calendarTheme}
             />
+            {isMonthSwitchLoading ? (
+              <Box
+                className="flex-row items-center gap-1 rounded-full px-2 py-1"
+                style={{
+                  position: "absolute",
+                  top: 12,
+                  right: 12,
+                  backgroundColor: "rgba(255, 255, 255, 0.92)",
+                }}
+              >
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text className="text-xs text-typography-500">Updating…</Text>
+              </Box>
+            ) : null}
           </Box>
 
           <Box className="gap-3">
