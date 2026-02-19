@@ -42,15 +42,18 @@ function endOfMonth(timestamp: number): number {
   return date.getTime();
 }
 
-function occursOnDate(rule: {
-  startDate: number;
-  recurrence: {
-    frequency: "daily" | "weekly" | "monthly";
-    interval: number;
-    byWeekdays?: number[];
-    until?: number;
-  };
-}, dateTimestamp: number): boolean {
+function occursOnDate(
+  rule: {
+    startDate: number;
+    recurrence: {
+      frequency: "daily" | "weekly" | "monthly";
+      interval: number;
+      byWeekdays?: number[];
+      until?: number;
+    };
+  },
+  dateTimestamp: number,
+): boolean {
   const date = startOfDay(dateTimestamp);
   const start = startOfDay(rule.startDate);
   const interval = Math.max(1, Math.floor(rule.recurrence.interval));
@@ -70,9 +73,15 @@ function occursOnDate(rule: {
   if (rule.recurrence.frequency === "weekly") {
     const startWeekDate = new Date(start);
     const currentWeekDate = new Date(date);
-    const startWeekAnchor = startOfDay(startWeekDate.getTime() - startWeekDate.getDay() * 24 * 60 * 60 * 1000);
-    const currentWeekAnchor = startOfDay(currentWeekDate.getTime() - currentWeekDate.getDay() * 24 * 60 * 60 * 1000);
-    const weeksBetween = Math.floor((currentWeekAnchor - startWeekAnchor) / (7 * 24 * 60 * 60 * 1000));
+    const startWeekAnchor = startOfDay(
+      startWeekDate.getTime() - startWeekDate.getDay() * 24 * 60 * 60 * 1000,
+    );
+    const currentWeekAnchor = startOfDay(
+      currentWeekDate.getTime() - currentWeekDate.getDay() * 24 * 60 * 60 * 1000,
+    );
+    const weeksBetween = Math.floor(
+      (currentWeekAnchor - startWeekAnchor) / (7 * 24 * 60 * 60 * 1000),
+    );
     if (weeksBetween % interval !== 0) {
       return false;
     }
@@ -93,11 +102,7 @@ function occursOnDate(rule: {
   return currentDate.getDate() === startDate.getDate();
 }
 
-async function createSessionFromRule(
-  ctx: any,
-  rule: any,
-  scheduledFor: number,
-) {
+async function createSessionFromRule(ctx: any, rule: any, scheduledFor: number) {
   const now = Date.now();
   return await ctx.db.insert("trainingScheduleSessions", {
     ownerId: rule.ownerId,
@@ -114,12 +119,7 @@ async function createSessionFromRule(
   });
 }
 
-async function ensureCoverageForRule(
-  ctx: any,
-  rule: any,
-  rangeStart: number,
-  rangeEnd: number,
-) {
+async function ensureCoverageForRule(ctx: any, rule: any, rangeStart: number, rangeEnd: number) {
   const start = startOfDay(rangeStart);
   const end = startOfDay(rangeEnd);
   if (end < start) {
@@ -273,7 +273,8 @@ export const addRecurringSeries = mutationGeneric({
     const item = await assertItemCanBeScheduled(ctx, userId, args.trainingItemId);
     const now = Date.now();
     const startDate = startOfDay(args.startDate);
-    const until = args.recurrence.until !== undefined ? startOfDay(args.recurrence.until) : undefined;
+    const until =
+      args.recurrence.until !== undefined ? startOfDay(args.recurrence.until) : undefined;
 
     const ruleId = await ctx.db.insert("trainingScheduleRecurrenceRules", {
       ownerId: userId,
@@ -332,11 +333,14 @@ export const ensureRecurringCoverage = mutationGeneric({
 
     const rules = await ctx.db
       .query("trainingScheduleRecurrenceRules")
-      .withIndex("by_owner_active_start_date", (q: any) => q.eq("ownerId", userId).eq("active", true))
+      .withIndex("by_owner_active_start_date", (q: any) =>
+        q.eq("ownerId", userId).eq("active", true),
+      )
       .collect();
 
     for (const rule of rules) {
-      const ruleUntil = rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
+      const ruleUntil =
+        rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
       if (rule.startDate > rangeEnd) {
         continue;
       }
@@ -384,7 +388,8 @@ export const updateUpcomingSession = mutationGeneric({
       throw new Error("Past sessions are immutable.");
     }
 
-    const nextScheduledFor = args.scheduledFor !== undefined ? startOfDay(args.scheduledFor) : session.scheduledFor;
+    const nextScheduledFor =
+      args.scheduledFor !== undefined ? startOfDay(args.scheduledFor) : session.scheduledFor;
     if (nextScheduledFor < today) {
       throw new Error("You can only move to today or future dates.");
     }
@@ -510,6 +515,71 @@ export const updateRecurringRuleFuture = mutationGeneric({
     );
 
     return await ctx.db.get(rule._id);
+  },
+});
+
+export const removeRecurringRuleFuture = mutationGeneric({
+  args: {
+    ruleId: v.id("trainingScheduleRecurrenceRules"),
+    effectiveFrom: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const rule = await ctx.db.get(args.ruleId);
+    if (!rule) {
+      throw new Error("Recurring rule not found.");
+    }
+    if (rule.ownerId !== userId) {
+      throw new Error("Forbidden");
+    }
+
+    const effectiveFrom = startOfDay(args.effectiveFrom);
+    const today = startOfDay(Date.now());
+    if (effectiveFrom < today) {
+      throw new Error("You can only delete recurring sessions from today or a future date.");
+    }
+
+    const sessions = await ctx.db
+      .query("trainingScheduleSessions")
+      .withIndex("by_rule_scheduled_for", (q: any) =>
+        q.eq("recurrenceRuleId", rule._id).gte("scheduledFor", effectiveFrom),
+      )
+      .collect();
+
+    const removableSessions = sessions.filter(
+      (session: any) => !session.completedAt && session.scheduledFor >= today,
+    );
+    await Promise.all(removableSessions.map((session: any) => ctx.db.delete(session._id)));
+    const removedCount = removableSessions.length;
+
+    const disableRule = effectiveFrom <= rule.startDate;
+    const cutoffUntil = addDays(effectiveFrom, -1);
+    const currentUntil =
+      rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
+    const nextUntil =
+      currentUntil === undefined ? cutoffUntil : Math.min(currentUntil, cutoffUntil);
+
+    const nextActive = disableRule ? false : nextUntil >= today && rule.active;
+
+    await ctx.db.patch(rule._id, {
+      active: nextActive,
+      recurrence: disableRule
+        ? rule.recurrence
+        : {
+            ...rule.recurrence,
+            until: nextUntil,
+          },
+      updatedAt: Date.now(),
+    });
+
+    return {
+      removedCount,
+      active: nextActive,
+    };
   },
 });
 
