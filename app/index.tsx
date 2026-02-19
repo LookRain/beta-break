@@ -28,6 +28,7 @@ export default function Home() {
     "signIn",
   );
   const [isAuthSubmitting, setIsAuthSubmitting] = React.useState(false);
+  const isAuthenticating = isLoading || isAuthSubmitting;
   const needsOnboarding =
     isAuthenticated &&
     profile !== undefined &&
@@ -52,11 +53,17 @@ export default function Home() {
 
     let cancelled = false;
     const finishSignIn = async () => {
+      setAuthError(null);
+      setIsAuthSubmitting(true);
       try {
         await signIn("google", { code });
       } catch (error) {
         if (!cancelled) {
           setAuthError(error instanceof Error ? error.message : "Could not complete Google sign-in.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsAuthSubmitting(false);
         }
       }
     };
@@ -69,6 +76,7 @@ export default function Home() {
 
   const handleGoogleSignIn = async () => {
     setAuthError(null);
+    setIsAuthSubmitting(true);
     try {
       const { redirect } = await signIn("google", { redirectTo });
       if (Platform.OS === "web") {
@@ -86,6 +94,8 @@ export default function Home() {
       }
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Could not start Google sign-in.");
+    } finally {
+      setIsAuthSubmitting(false);
     }
   };
 
@@ -154,6 +164,12 @@ export default function Home() {
             >
               <ButtonText className="font-semibold">Sign out</ButtonText>
             </Button>
+          ) : isAuthenticating && !authError ? (
+            <Box className="rounded-xl p-4" style={{ backgroundColor: colors.primaryBg }}>
+              <Text className="text-center text-typography-700 text-sm">
+                Authenticating...
+              </Text>
+            </Box>
           ) : (
             <>
               <TextInput
@@ -180,7 +196,7 @@ export default function Home() {
                 onPress={() => void handlePasswordAuth()}
                 size="lg"
                 className="rounded-xl"
-                disabled={isLoading || isAuthSubmitting}
+                disabled={isAuthenticating}
               >
                 <ButtonText className="font-semibold">
                   {isAuthSubmitting
@@ -199,7 +215,7 @@ export default function Home() {
                 variant="outline"
                 size="lg"
                 className="rounded-xl"
-                disabled={isLoading || isAuthSubmitting}
+                disabled={isAuthenticating}
               >
                 <ButtonText className="font-semibold">
                   {passwordFlow === "signIn"
@@ -211,10 +227,10 @@ export default function Home() {
                 onPress={() => void handleGoogleSignIn()}
                 size="lg"
                 className="rounded-xl"
-                disabled={isLoading || isAuthSubmitting}
+                disabled={isAuthenticating}
               >
                 <ButtonText className="font-semibold">
-                  {isLoading ? "Checking session..." : "Continue with Google"}
+                  Continue with Google
                 </ButtonText>
               </Button>
             </>
