@@ -760,7 +760,7 @@ export default function TimerScreen() {
     : "Not set";
   const currentExerciseCategory =
     session?.snapshot.categories?.length &&
-    session.snapshot.categories.some((entry) => !!entry.trim())
+    session.snapshot.categories.some((entry: string) => !!entry.trim())
       ? session.snapshot.categories.join(", ")
       : session?.snapshot.category || "Not set";
   const currentExerciseTags = session?.snapshot.tags.length
