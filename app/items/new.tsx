@@ -19,11 +19,7 @@ export default function NewItemScreen() {
     <TrainingItemForm
       submitLabel="Create exercise"
       onSubmit={async (values) => {
-        const created = await createItem(values);
-        if (created?._id) {
-          router.replace(`/items/${created._id}`);
-          return;
-        }
+        await createItem(values);
         goBackToItems();
       }}
     />

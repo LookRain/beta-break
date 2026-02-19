@@ -60,9 +60,18 @@ function clampPositiveInt(value: number | undefined, fallback: number): number {
 function describeLoad(
   trainingType: "hang" | "weight_training" | "climbing" | "others" | undefined,
   weight: number | undefined,
+  bodyWeightKg: number | undefined,
 ): string {
   if (weight === undefined) return "Not set";
-  return trainingType ? `${weight}% BW` : `${weight}kg`;
+  if (!trainingType) return `${weight}kg`;
+  if (weight > 100) {
+    if (bodyWeightKg && bodyWeightKg > 0) {
+      const additionalKg = Number((((weight - 100) / 100) * bodyWeightKg).toFixed(1));
+      return `Additional Weight +${additionalKg}kg`;
+    }
+    return `Additional Weight +${Number((weight - 100).toFixed(1))}% BW`;
+  }
+  return `${weight}% BW`;
 }
 
 const TRAINING_TYPE_LABEL: Record<string, string> = {
@@ -86,6 +95,7 @@ export default function TimerScreen() {
     api.trainingSchedule.getSessionById,
     sessionId ? { sessionId: sessionId as never } : "skip",
   );
+  const profile = useQuery(api.profiles.getMyProfile);
   const startSessionExecution = useMutation(api.trainingLogs.startSessionExecution);
   const appendExecutionStep = useMutation(api.trainingLogs.appendExecutionStep);
   const finishSessionExecution = useMutation(api.trainingLogs.finishSessionExecution);
@@ -526,6 +536,10 @@ export default function TimerScreen() {
   const theme = PHASE_THEME[phase];
   const isPaused = pausedRemainingMs !== null;
   const showReadyGate = isPrep && awaitingStart;
+  const completedSets = isCompleted
+    ? plannedSets
+    : Math.max(0, Math.min(currentSet - 1, plannedSets));
+  const setProgressPercent = plannedSets > 0 ? (completedSets / plannedSets) * 100 : 0;
 
   const phaseLabel = isCompleted
     ? "DONE"
@@ -564,6 +578,7 @@ export default function TimerScreen() {
   const currentExerciseSummary = `Load ${describeLoad(
     session?.snapshot.trainingType,
     mergedVariables.weight,
+    profile?.bodyWeightKg,
   )} · ${mergedVariables.sets ?? "—"} sets · ${mergedVariables.reps ?? "—"} reps · Rest ${
     mergedVariables.restSeconds ?? "—"
   }s · Duration ${mergedVariables.durationSeconds ?? "—"}s`;
@@ -595,23 +610,16 @@ export default function TimerScreen() {
             {session?.snapshot.title ?? "Training session"}
           </Text>
           <View style={styles.setRow}>
-            <View style={styles.dotsRow}>
-              {Array.from({ length: plannedSets }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.dot,
-                    {
-                      backgroundColor:
-                        i < currentSet - 1
-                          ? colors.success
-                          : i === currentSet - 1
-                            ? theme.accent
-                            : "rgba(255,255,255,0.2)",
-                    },
-                  ]}
-                />
-              ))}
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: `${setProgressPercent}%`,
+                    backgroundColor: isCompleted ? colors.success : theme.accent,
+                  },
+                ]}
+              />
             </View>
             <Text style={styles.setText}>
               Set {Math.min(currentSet, plannedSets)}/{plannedSets}
@@ -782,8 +790,17 @@ const styles = StyleSheet.create({
   header: { gap: 8 },
   sessionTitle: { fontSize: 20, fontWeight: "700", color: "#fff" },
   setRow: { flexDirection: "row", alignItems: "center", gap: 12 },
-  dotsRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  dot: { width: 10, height: 10, borderRadius: 5 },
+  progressTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+  },
   setText: { fontSize: 14, color: "rgba(255,255,255,0.5)" },
 
   centerSection: { alignItems: "center", gap: 16, overflow: "visible" },

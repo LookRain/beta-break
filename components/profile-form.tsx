@@ -37,6 +37,7 @@ type ProfileValues = {
 type Props = {
   initialValues?: ProfileValues;
   onSubmit: (values: ProfileValues) => Promise<void>;
+  onSignOut?: () => Promise<void> | void;
 };
 
 function parseOptionalNumber(value: string): number | undefined {
@@ -46,7 +47,7 @@ function parseOptionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-export function ProfileForm({ initialValues, onSubmit }: Props) {
+export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
   const insets = useSafeAreaInsets();
   const [username, setUsername] = React.useState(initialValues?.username ?? "");
   const [bodyWeightKg, setBodyWeightKg] = React.useState(initialValues?.bodyWeightKg?.toString() ?? "");
@@ -61,6 +62,7 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
   const [showProfilePublic, setShowProfilePublic] = React.useState(initialValues?.showProfilePublic ?? true);
   const [showHistoryPublic, setShowHistoryPublic] = React.useState(initialValues?.showHistoryPublic ?? true);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSigningOut, setIsSigningOut] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const stickyFooterBottomPadding = insets.bottom + (Platform.OS === "ios" ? 56 : 64);
   const scrollBottomPadding = Math.max(screenPadding.paddingBottom, insets.bottom + 120);
@@ -87,6 +89,19 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
       setError(submitError instanceof Error ? submitError.message : "Could not save profile.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (!onSignOut) return;
+    setError(null);
+    setIsSigningOut(true);
+    try {
+      await onSignOut();
+    } catch (signOutError) {
+      setError(signOutError instanceof Error ? signOutError.message : "Could not sign out.");
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -259,6 +274,20 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
               />
             </Pressable>
           </Box>
+
+          {onSignOut ? (
+            <Button
+              className="rounded-xl"
+              size="lg"
+              variant="outline"
+              onPress={() => void handleSignOut()}
+              disabled={isSubmitting || isSigningOut}
+            >
+              <ButtonText className="font-semibold">
+                {isSigningOut ? "Signing out..." : "Sign out"}
+              </ButtonText>
+            </Button>
+          ) : null}
         </ScrollView>
 
         <Box
@@ -281,7 +310,7 @@ export function ProfileForm({ initialValues, onSubmit }: Props) {
             className="rounded-xl"
             size="lg"
             onPress={() => void handleSubmit()}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isSigningOut}
           >
             <ButtonText className="font-semibold">
               {isSubmitting ? "Saving..." : "Save profile"}

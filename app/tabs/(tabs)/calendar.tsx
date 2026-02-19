@@ -3,7 +3,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput } from
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
@@ -190,6 +190,7 @@ function buildEditDraft(base: SessionOverrides, overrides: SessionOverrides): Se
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { isAuthenticated } = useConvexAuth();
   const todayStr = localTodayString();
   const [selectedDate, setSelectedDate] = React.useState(todayStr);
   const [visibleMonth, setVisibleMonth] = React.useState(todayStr);
@@ -213,8 +214,21 @@ export default function CalendarScreen() {
   const completeSession = useMutation(api.trainingSchedule.completeSession);
 
   React.useEffect(() => {
-    void ensureRecurringCoverage({ rangeStart, rangeEnd });
-  }, [ensureRecurringCoverage, rangeStart, rangeEnd]);
+    if (!isAuthenticated) {
+      return;
+    }
+    const run = async () => {
+      try {
+        await ensureRecurringCoverage({ rangeStart, rangeEnd });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("Unauthorized")) {
+          return;
+        }
+        throw error;
+      }
+    };
+    void run();
+  }, [ensureRecurringCoverage, isAuthenticated, rangeStart, rangeEnd]);
 
   const [selectedItemId, setSelectedItemId] = React.useState<string>("");
   const [scheduleMode, setScheduleMode] = React.useState<"single" | "recurring">("single");
@@ -555,7 +569,7 @@ export default function CalendarScreen() {
           className="rounded-xl"
           onPress={() => router.push("/plan-history")}
         >
-          <ButtonText>View past sessions</ButtonText>
+          <ButtonText>View Past Sessions</ButtonText>
         </Button>
         </ScrollView>
       </KeyboardAvoidingView>

@@ -11,6 +11,8 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { convexClient } from '@/lib/convexClient';
 import { colors } from '@/lib/theme';
+import { Box } from '@/components/ui/box';
+import { Text } from '@/components/ui/text';
 
 export {
   ErrorBoundary,
@@ -62,6 +64,24 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
+  if (!convexClient) {
+    return (
+      <GluestackUIProvider mode="light">
+        <ThemeProvider value={AppTheme}>
+          <Box className="flex-1 items-center justify-center px-6">
+            <Text className="text-typography-900 text-lg font-semibold text-center">
+              App configuration required
+            </Text>
+            <Text className="text-typography-600 text-center mt-2">
+              Missing EXPO_PUBLIC_CONVEX_URL. Configure it in your EAS build
+              environment and rebuild this app.
+            </Text>
+          </Box>
+        </ThemeProvider>
+      </GluestackUIProvider>
+    );
+  }
+
   const app = (
     <GluestackUIProvider mode="light">
       <ThemeProvider value={AppTheme}>
@@ -79,6 +99,12 @@ function RootLayoutNav() {
           }}
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="onboarding"
+            options={{
+              title: "Welcome",
+            }}
+          />
           <Stack.Screen name="tabs" options={{ headerShown: false }} />
           <Stack.Screen
             name="items/new"
@@ -125,7 +151,7 @@ function RootLayoutNav() {
     </GluestackUIProvider>
   );
 
-  return convexClient ? (
+  return (
     <ConvexAuthProvider
       client={convexClient}
       storage={
@@ -136,7 +162,5 @@ function RootLayoutNav() {
     >
       {app}
     </ConvexAuthProvider>
-  ) : (
-    app
   );
 }

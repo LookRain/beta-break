@@ -1,5 +1,6 @@
 import React from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "@/convex/_generated/api";
 import { ProfileForm } from "@/components/profile-form";
 import { Box } from "@/components/ui/box";
@@ -8,6 +9,7 @@ import { Text } from "@/components/ui/text";
 export default function ProfileScreen() {
   const profile = useQuery(api.profiles.getMyProfile);
   const upsertProfile = useMutation(api.profiles.upsertMyProfile);
+  const { signOut } = useAuthActions();
 
   if (profile === undefined) {
     return (
@@ -59,6 +61,7 @@ export default function ProfileScreen() {
           showProfilePublic: values.showProfilePublic,
           showHistoryPublic: values.showHistoryPublic,
         })}
+      onSignOut={() => signOut()}
     />
   );
 }

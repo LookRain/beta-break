@@ -6,16 +6,17 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "ios": {
-        "simulator": true
-      }
+      "distribution": "internal"
     },
     "preview": {
       "distribution": "internal"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_CONVEX_URL": "https://scrupulous-hamster-915.convex.cloud",
+        "EXPO_PUBLIC_CONVEX_SITE_URL": "https://scrupulous-hamster-915.convex.site"
+      }
     }
   },
   "submit": {

@@ -76,12 +76,25 @@ export function TrainingItemCard({
             : null;
   const usesBodyweightPercent = !!item.trainingType;
   const weightPercent = item.variables.weight;
+  const additionalWeightPercent =
+    usesBodyweightPercent && weightPercent !== undefined && weightPercent > 100
+      ? Number((weightPercent - 100).toFixed(1))
+      : undefined;
   const personalizedWeightKg =
-    usesBodyweightPercent && weightPercent !== undefined && profile?.bodyWeightKg
+    usesBodyweightPercent &&
+    weightPercent !== undefined &&
+    additionalWeightPercent === undefined &&
+    profile?.bodyWeightKg
       ? Number(((weightPercent / 100) * profile.bodyWeightKg).toFixed(1))
       : undefined;
+  const additionalWeightKg =
+    additionalWeightPercent !== undefined && profile?.bodyWeightKg
+      ? Number(((additionalWeightPercent / 100) * profile.bodyWeightKg).toFixed(1))
+      : undefined;
   const loadLabel =
-    weightPercent !== undefined
+    additionalWeightPercent !== undefined
+      ? `Additional Weight: +${additionalWeightPercent}% BW${additionalWeightKg !== undefined ? ` (+${additionalWeightKg}kg for you)` : ""}`
+      : weightPercent !== undefined
       ? `${weightPercent}% BW${personalizedWeightKg !== undefined ? ` (${personalizedWeightKg}kg for you)` : ""}`
       : null;
   const legacyLoadLabel = weightPercent !== undefined ? `${weightPercent}kg` : null;

@@ -1,8 +1,16 @@
 import React from "react";
 import { Image, ImageSourcePropType, StyleSheet, View } from "react-native";
+import { useQuery } from "convex/react";
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Rect,
+  Stop,
+} from "react-native-svg";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Repeat, Layers, Timer, Weight } from "lucide-react-native";
+import { api } from "@/convex/_generated/api";
 import { colors, cardShadow } from "@/lib/theme";
 
 export type SessionSnapshot = {
@@ -85,16 +93,23 @@ export function SessionCard({
   statusBadge,
   children,
 }: SessionCardProps) {
+  const profile = useQuery(api.profiles.getMyProfile);
   const accentColor =
     typeAccentColors[snapshot.trainingType ?? ""] ?? colors.primary;
   const bgImage = resolveImage(snapshot);
   const isBodyweightPercent = !!snapshot.trainingType;
+  const bodyWeightKg = profile?.bodyWeightKg;
 
-  const loadLabel = finalVariables.weight
-    ? isBodyweightPercent
-      ? `${finalVariables.weight}% BW`
-      : `${finalVariables.weight}kg`
-    : null;
+  const loadLabel =
+    finalVariables.weight != null
+      ? isBodyweightPercent
+        ? finalVariables.weight > 100
+          ? bodyWeightKg && bodyWeightKg > 0
+            ? `Additional Weight: +${Number((((finalVariables.weight - 100) / 100) * bodyWeightKg).toFixed(1))}kg`
+            : `Additional Weight: +${Number((finalVariables.weight - 100).toFixed(1))}% BW`
+          : `${finalVariables.weight}% BW`
+        : `${finalVariables.weight}kg`
+      : null;
 
   const hasStats =
     finalVariables.sets != null ||
@@ -109,7 +124,35 @@ export function SessionCard({
       {bgImage ? (
         <View style={styles.imageContainer}>
           <Image source={bgImage} style={styles.bgImage} resizeMode="cover" />
-          <View style={styles.imageFadeLeft} />
+          <Svg
+            style={styles.imageFeatherGradient}
+            width="100%"
+            height="100%"
+            preserveAspectRatio="none"
+            pointerEvents="none"
+          >
+            <Defs>
+              <SvgLinearGradient
+                id="sessionCardLeftFeather"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <Stop offset="0%" stopColor={colors.bgCard} stopOpacity={1} />
+                <Stop offset="22%" stopColor={colors.bgCard} stopOpacity={0.88} />
+                <Stop offset="55%" stopColor={colors.bgCard} stopOpacity={0.45} />
+                <Stop offset="100%" stopColor={colors.bgCard} stopOpacity={0.12} />
+              </SvgLinearGradient>
+            </Defs>
+            <Rect
+              x="0"
+              y="0"
+              width="68%"
+              height="100%"
+              fill="url(#sessionCardLeftFeather)"
+            />
+          </Svg>
           <View style={styles.imageFadeTop} />
         </View>
       ) : null}
@@ -181,22 +224,17 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
-    width: "45%",
+    width: "66%",
     overflow: "hidden",
   },
   bgImage: {
-    width: "100%",
+    width: "132%",
     height: "100%",
-    opacity: 0.09,
+    opacity: 0.41,
+    transform: [{ translateX: 18 }],
   },
-  imageFadeLeft: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: "50%",
-    backgroundColor: colors.bgCard,
-    opacity: 0.9,
+  imageFeatherGradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   imageFadeTop: {
     position: "absolute",
@@ -205,7 +243,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: "30%",
     backgroundColor: colors.bgCard,
-    opacity: 0.6,
+    opacity: 0.35,
   },
   content: {
     flex: 1,
