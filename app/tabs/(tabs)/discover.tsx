@@ -22,24 +22,21 @@ export default function DiscoverScreen() {
   const { isAuthenticated } = useConvexAuth();
   const [searchText, setSearchText] = React.useState("");
   const [categoriesInput, setCategoriesInput] = React.useState("");
-  const [equipmentInput, setEquipmentInput] = React.useState("");
   const [difficulty, setDifficulty] = React.useState<"" | "beginner" | "intermediate" | "advanced">(
     "",
   );
   const [tagsInput, setTagsInput] = React.useState("");
   const tags = React.useMemo(() => parseCommaSeparated(tagsInput), [tagsInput]);
   const categories = React.useMemo(() => parseCommaSeparated(categoriesInput), [categoriesInput]);
-  const equipment = React.useMemo(() => parseCommaSeparated(equipmentInput), [equipmentInput]);
   const normalizedSearchText = searchText.trim();
   const queryArgs = React.useMemo(
     () => ({
       searchText: normalizedSearchText || undefined,
       categories: categories.length > 0 ? categories : undefined,
-      equipment: equipment.length > 0 ? equipment : undefined,
       difficulty: difficulty || undefined,
       tags: tags.length > 0 ? tags : undefined,
     }),
-    [normalizedSearchText, categories, equipment, difficulty, tags],
+    [normalizedSearchText, categories, difficulty, tags],
   );
 
   const items = useQuery(api.trainingItems.listPublishedItems, queryArgs);
@@ -125,18 +122,6 @@ export default function DiscoverScreen() {
             style={{ ...inputStyle, fontSize: 13, paddingVertical: 10 }}
           />
         </Box>
-        <Box className="flex-1">
-          <TextInput
-            value={equipmentInput}
-            onChangeText={setEquipmentInput}
-            placeholder="Equipment (comma separated)"
-            placeholderTextColor={colors.textMuted}
-            style={{ ...inputStyle, fontSize: 13, paddingVertical: 10 }}
-          />
-        </Box>
-      </Box>
-
-      <Box className="flex-row gap-2">
         <Box className="flex-1">
           <TextInput
             value={tagsInput}

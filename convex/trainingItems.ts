@@ -228,7 +228,6 @@ export const listPublishedItems = queryGeneric({
     searchText: v.optional(v.string()),
     category: v.optional(v.string()),
     categories: v.optional(v.array(v.string())),
-    equipment: v.optional(v.array(v.string())),
     difficulty: v.optional(difficultyValidator),
     tags: v.optional(v.array(v.string())),
   },
@@ -242,12 +241,6 @@ export const listPublishedItems = queryGeneric({
         .map((entry) => entry.toLowerCase().trim())
         .filter((entry) => entry.length > 0),
     );
-    const requestedEquipment = new Set(
-      (args.equipment ?? [])
-        .map((entry) => entry.toLowerCase().trim())
-        .filter((entry) => entry.length > 0),
-    );
-
     const filtered = items
       .filter((item) => {
         const itemCategories = (
@@ -264,23 +257,6 @@ export const listPublishedItems = queryGeneric({
         if (args.difficulty && item.difficulty !== args.difficulty) {
           return false;
         }
-        if (requestedEquipment.size > 0) {
-          const itemEquipment = new Set(
-            item.equipment
-              .map((entry: string) => entry.toLowerCase().trim())
-              .filter((entry: string) => entry.length > 0),
-          );
-          let hasAnyMatchingEquipment = false;
-          for (const entry of requestedEquipment) {
-            if (itemEquipment.has(entry)) {
-              hasAnyMatchingEquipment = true;
-              break;
-            }
-          }
-          if (!hasAnyMatchingEquipment) {
-            return false;
-          }
-        }
         if (requestedTags.size > 0) {
           const itemTags = new Set(item.tags.map((tag: string) => tag.toLowerCase()));
           for (const tag of requestedTags) {
@@ -294,7 +270,7 @@ export const listPublishedItems = queryGeneric({
             item.categories?.length ? item.categories : item.category ? [item.category] : []
           ).join(" ");
           const haystack =
-            `${item.title} ${item.description ?? ""} ${item.tags.join(" ")} ${searchableCategories} ${item.equipment.join(" ")}`.toLowerCase();
+            `${item.title} ${item.description ?? ""} ${item.tags.join(" ")} ${searchableCategories}`.toLowerCase();
           if (!haystack.includes(normalizedSearch)) {
             return false;
           }
