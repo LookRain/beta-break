@@ -1091,7 +1091,24 @@ export default function CalendarScreen() {
                     <Text className="text-base font-semibold text-typography-900">
                       Workout Parameters
                     </Text>
+                    <Text className="text-xs text-typography-500">
+                      Reps are work cycles per set. Sets are repeated rounds. Rep duration is work
+                      time per rep; rest values are recovery between reps and sets.
+                    </Text>
                     <Box className="flex-row gap-2">
+                      <Box className="flex-1">
+                        <Text className="text-xs text-typography-500 mb-1">Reps</Text>
+                        <TextInput
+                          placeholder="—"
+                          placeholderTextColor={colors.textMuted}
+                          value={overrideDraft.reps}
+                          onChangeText={(value) =>
+                            updateSessionDraft(overrideSession._id, { reps: value })
+                          }
+                          keyboardType="numeric"
+                          style={inputStyle}
+                        />
+                      </Box>
                       <Box className="flex-1">
                         <Text className="text-xs text-typography-500 mb-1">Sets</Text>
                         <TextInput
@@ -1105,14 +1122,16 @@ export default function CalendarScreen() {
                           style={inputStyle}
                         />
                       </Box>
+                    </Box>
+                    <Box className="flex-row gap-2">
                       <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Reps</Text>
+                        <Text className="text-xs text-typography-500 mb-1">Rep duration (s)</Text>
                         <TextInput
                           placeholder="—"
                           placeholderTextColor={colors.textMuted}
-                          value={overrideDraft.reps}
+                          value={overrideDraft.durationSeconds}
                           onChangeText={(value) =>
-                            updateSessionDraft(overrideSession._id, { reps: value })
+                            updateSessionDraft(overrideSession._id, { durationSeconds: value })
                           }
                           keyboardType="numeric"
                           style={inputStyle}
@@ -1147,21 +1166,6 @@ export default function CalendarScreen() {
                             updateSessionDraft(overrideSession._id, {
                               restBetweenSetsSeconds: value,
                             })
-                          }
-                          keyboardType="numeric"
-                          style={inputStyle}
-                        />
-                      </Box>
-                    </Box>
-                    <Box className="flex-row gap-2">
-                      <Box className="flex-1">
-                        <Text className="text-xs text-typography-500 mb-1">Duration (s)</Text>
-                        <TextInput
-                          placeholder="—"
-                          placeholderTextColor={colors.textMuted}
-                          value={overrideDraft.durationSeconds}
-                          onChangeText={(value) =>
-                            updateSessionDraft(overrideSession._id, { durationSeconds: value })
                           }
                           keyboardType="numeric"
                           style={inputStyle}
