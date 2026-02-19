@@ -12,11 +12,13 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { Mountain } from "lucide-react-native";
 import { colors, inputStyle } from "@/lib/theme";
 import { api } from "@/convex/_generated/api";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 const redirectTo = makeRedirectUri({ scheme: "betabreak" });
 
 export default function Home() {
   const router = useRouter();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const params = useGlobalSearchParams<{ code?: string | string[] }>();
   const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading } = useConvexAuth();
@@ -24,9 +26,7 @@ export default function Home() {
   const [authError, setAuthError] = React.useState<string | null>(null);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
-  const [passwordFlow, setPasswordFlow] = React.useState<"signIn" | "signUp">(
-    "signIn",
-  );
+  const [passwordFlow, setPasswordFlow] = React.useState<"signIn" | "signUp">("signIn");
   const [isAuthSubmitting, setIsAuthSubmitting] = React.useState(false);
   const isAuthenticating = isLoading || isAuthSubmitting;
   const needsOnboarding =
@@ -57,9 +57,12 @@ export default function Home() {
       setIsAuthSubmitting(true);
       try {
         await signIn("google", { code });
+        showSuccessToast("Signed in.");
       } catch (error) {
         if (!cancelled) {
-          setAuthError(error instanceof Error ? error.message : "Could not complete Google sign-in.");
+          const message = showErrorMessage(error, "Could not complete Google sign-in.");
+          setAuthError(message);
+          showErrorToast("Google sign-in failed", message);
         }
       } finally {
         if (!cancelled) {
@@ -72,7 +75,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, params.code, signIn]);
+  }, [isAuthenticated, params.code, showErrorToast, showSuccessToast, signIn]);
 
   const handleGoogleSignIn = async () => {
     setAuthError(null);
@@ -90,10 +93,13 @@ export default function Home() {
         const code = new URL(result.url).searchParams.get("code");
         if (code) {
           await signIn("google", { code });
+          showSuccessToast("Signed in.");
         }
       }
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Could not start Google sign-in.");
+      const message = showErrorMessage(error, "Could not start Google sign-in.");
+      setAuthError(message);
+      showErrorToast("Google sign-in failed", message);
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -118,12 +124,29 @@ export default function Home() {
         password,
         flow: passwordFlow,
       });
+      showSuccessToast(passwordFlow === "signIn" ? "Signed in." : "Account created.");
     } catch (error) {
-      setAuthError(
-        error instanceof Error
-          ? error.message
-          : `Could not ${passwordFlow === "signIn" ? "sign in" : "sign up"} with email.`,
+      const message = showErrorMessage(
+        error,
+        `Could not ${passwordFlow === "signIn" ? "sign in" : "sign up"} with email.`,
       );
+      setAuthError(message);
+      showErrorToast(passwordFlow === "signIn" ? "Sign-in failed" : "Sign-up failed", message);
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setAuthError(null);
+    setIsAuthSubmitting(true);
+    try {
+      await signOut();
+      showSuccessToast("Signed out.");
+    } catch (signOutError) {
+      const message = showErrorMessage(signOutError, "Could not sign out.");
+      setAuthError(message);
+      showErrorToast("Could not sign out", message);
     } finally {
       setIsAuthSubmitting(false);
     }
@@ -134,7 +157,10 @@ export default function Home() {
       className="flex-1"
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <Box className="flex-1 items-center justify-center px-8" style={{ backgroundColor: "#ffffff" }}>
+      <Box
+        className="flex-1 items-center justify-center px-8"
+        style={{ backgroundColor: "#ffffff" }}
+      >
         <Box className="items-center gap-3 mb-12">
           <Box
             className="items-center justify-center rounded-3xl mb-2"
@@ -145,7 +171,10 @@ export default function Home() {
           <Text className="text-4xl font-bold text-typography-900" style={{ letterSpacing: -0.5 }}>
             Beta Break
           </Text>
-          <Text className="text-center text-typography-500 text-base" style={{ maxWidth: 260, lineHeight: 22 }}>
+          <Text
+            className="text-center text-typography-500 text-base"
+            style={{ maxWidth: 260, lineHeight: 22 }}
+          >
             Plan your climbing training.{"\n"}Track progress. Get stronger.
           </Text>
         </Box>
@@ -157,18 +186,12 @@ export default function Home() {
             </Box>
           ) : null}
           {isAuthenticated ? (
-            <Button
-              onPress={() => void signOut()}
-              size="lg"
-              className="rounded-xl"
-            >
+            <Button onPress={() => void handleSignOut()} size="lg" className="rounded-xl">
               <ButtonText className="font-semibold">Sign out</ButtonText>
             </Button>
           ) : isAuthenticating && !authError ? (
             <Box className="rounded-xl p-4" style={{ backgroundColor: colors.primaryBg }}>
-              <Text className="text-center text-typography-700 text-sm">
-                Authenticating...
-              </Text>
+              <Text className="text-center text-typography-700 text-sm">Authenticating...</Text>
             </Box>
           ) : (
             <>
@@ -209,9 +232,7 @@ export default function Home() {
                 </ButtonText>
               </Button>
               <Button
-                onPress={() =>
-                  setPasswordFlow((prev) => (prev === "signIn" ? "signUp" : "signIn"))
-                }
+                onPress={() => setPasswordFlow((prev) => (prev === "signIn" ? "signUp" : "signIn"))}
                 variant="outline"
                 size="lg"
                 className="rounded-xl"
@@ -229,9 +250,7 @@ export default function Home() {
                 className="rounded-xl"
                 disabled={isAuthenticating}
               >
-                <ButtonText className="font-semibold">
-                  Continue with Google
-                </ButtonText>
+                <ButtonText className="font-semibold">Continue with Google</ButtonText>
               </Button>
             </>
           )}

@@ -9,11 +9,26 @@ import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
 import { Plus } from "lucide-react-native";
 import { colors, cardShadow, screenPadding } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 export default function MyItemsScreen() {
   const router = useRouter();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const items = useQuery(api.trainingItems.listMyItems);
   const deleteItem = useMutation(api.trainingItems.deleteDraft);
+
+  const handleDeleteItem = React.useCallback(
+    async (itemId: string) => {
+      try {
+        await deleteItem({ itemId: itemId as never });
+        showSuccessToast("Exercise deleted.");
+      } catch (deleteError) {
+        const message = showErrorMessage(deleteError, "Could not delete exercise.");
+        showErrorToast("Delete failed", message);
+      }
+    },
+    [deleteItem, showErrorToast, showSuccessToast],
+  );
 
   if (items === undefined) {
     return (
@@ -54,7 +69,7 @@ export default function MyItemsScreen() {
             item={item}
             onPressPrimary={() => router.push(`/items/${item._id}`)}
             primaryLabel="Edit"
-            onPressSecondary={() => void deleteItem({ itemId: item._id })}
+            onPressSecondary={() => void handleDeleteItem(item._id)}
             secondaryLabel="Delete"
           />
         ))}

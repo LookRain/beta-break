@@ -1,5 +1,12 @@
 import React from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, TextInput } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Switch,
+  TextInput,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
@@ -7,6 +14,7 @@ import { Button, ButtonText } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { parseCommaSeparated, toCommaSeparated } from "@/lib/trainingItemFilters";
 import { cardShadow, colors, inputStyle, screenPadding } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 const sectionCardStyle = {
   ...cardShadow,
@@ -49,18 +57,33 @@ function parseOptionalNumber(value: string): number | undefined {
 
 export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
   const insets = useSafeAreaInsets();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const [username, setUsername] = React.useState(initialValues?.username ?? "");
-  const [bodyWeightKg, setBodyWeightKg] = React.useState(initialValues?.bodyWeightKg?.toString() ?? "");
-  const [stylesInput, setStylesInput] = React.useState(toCommaSeparated(initialValues?.styles ?? []));
-  const [climbingAgeMonths, setClimbingAgeMonths] = React.useState(initialValues?.climbingAgeMonths?.toString() ?? "");
-  const [boulderingGrade, setBoulderingGrade] = React.useState(initialValues?.boulderingGrade ?? "");
+  const [bodyWeightKg, setBodyWeightKg] = React.useState(
+    initialValues?.bodyWeightKg?.toString() ?? "",
+  );
+  const [stylesInput, setStylesInput] = React.useState(
+    toCommaSeparated(initialValues?.styles ?? []),
+  );
+  const [climbingAgeMonths, setClimbingAgeMonths] = React.useState(
+    initialValues?.climbingAgeMonths?.toString() ?? "",
+  );
+  const [boulderingGrade, setBoulderingGrade] = React.useState(
+    initialValues?.boulderingGrade ?? "",
+  );
   const [sportGrade, setSportGrade] = React.useState(initialValues?.sportGrade ?? "");
   const [tradGrade, setTradGrade] = React.useState(initialValues?.tradGrade ?? "");
-  const [regionsInput, setRegionsInput] = React.useState(toCommaSeparated(initialValues?.regions ?? []));
+  const [regionsInput, setRegionsInput] = React.useState(
+    toCommaSeparated(initialValues?.regions ?? []),
+  );
   const [bio, setBio] = React.useState(initialValues?.bio ?? "");
   const [goals, setGoals] = React.useState(initialValues?.goals ?? "");
-  const [showProfilePublic, setShowProfilePublic] = React.useState(initialValues?.showProfilePublic ?? true);
-  const [showHistoryPublic, setShowHistoryPublic] = React.useState(initialValues?.showHistoryPublic ?? true);
+  const [showProfilePublic, setShowProfilePublic] = React.useState(
+    initialValues?.showProfilePublic ?? true,
+  );
+  const [showHistoryPublic, setShowHistoryPublic] = React.useState(
+    initialValues?.showHistoryPublic ?? true,
+  );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isSigningOut, setIsSigningOut] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -85,8 +108,11 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
         showProfilePublic,
         showHistoryPublic,
       });
+      showSuccessToast("Profile saved.");
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Could not save profile.");
+      const message = showErrorMessage(submitError, "Could not save profile.");
+      setError(message);
+      showErrorToast("Could not save profile", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -98,8 +124,11 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
     setIsSigningOut(true);
     try {
       await onSignOut();
+      showSuccessToast("Signed out.");
     } catch (signOutError) {
-      setError(signOutError instanceof Error ? signOutError.message : "Could not sign out.");
+      const message = showErrorMessage(signOutError, "Could not sign out.");
+      setError(message);
+      showErrorToast("Could not sign out", message);
     } finally {
       setIsSigningOut(false);
     }

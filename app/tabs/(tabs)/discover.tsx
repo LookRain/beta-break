@@ -9,19 +9,22 @@ import { TrainingItemCard } from "@/components/training-item-card";
 import { PageHeader } from "@/components/page-header";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
-import { Button, ButtonText } from "@/components/ui/button";
 import { parseCommaSeparated } from "@/lib/trainingItemFilters";
 import { ChevronRight, FolderOpen, Plus, Search } from "lucide-react-native";
 import { colors, inputStyle, screenPadding } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const navigation = useNavigation();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const { isAuthenticated } = useConvexAuth();
   const [searchText, setSearchText] = React.useState("");
   const [category, setCategory] = React.useState("");
-  const [difficulty, setDifficulty] = React.useState<"" | "beginner" | "intermediate" | "advanced">("");
+  const [difficulty, setDifficulty] = React.useState<"" | "beginner" | "intermediate" | "advanced">(
+    "",
+  );
   const [tagsInput, setTagsInput] = React.useState("");
   const tags = React.useMemo(() => parseCommaSeparated(tagsInput), [tagsInput]);
   const normalizedSearchText = searchText.trim();
@@ -37,7 +40,6 @@ export default function DiscoverScreen() {
   );
 
   const items = useQuery(api.trainingItems.listPublishedItems, queryArgs);
-  const me = useQuery(api.users.me);
   const savedItems = useQuery(api.savedItems.listSavedItems, isAuthenticated ? {} : "skip");
   const saveItem = useMutation(api.savedItems.saveItem);
   const unsaveItem = useMutation(api.savedItems.unsaveItem);
@@ -50,12 +52,22 @@ export default function DiscoverScreen() {
   );
 
   const toggleSave = async (itemId: string) => {
-    if (!isAuthenticated) return;
-    if (savedIds.has(itemId)) {
-      await unsaveItem({ itemId: itemId as never });
+    if (!isAuthenticated) {
+      showErrorToast("Sign in required", "Sign in to save exercises.");
       return;
     }
-    await saveItem({ itemId: itemId as never });
+    try {
+      if (savedIds.has(itemId)) {
+        await unsaveItem({ itemId: itemId as never });
+        showSuccessToast("Removed from saved exercises.");
+        return;
+      }
+      await saveItem({ itemId: itemId as never });
+      showSuccessToast("Exercise saved.");
+    } catch (toggleError) {
+      const message = showErrorMessage(toggleError, "Could not update saved exercises.");
+      showErrorToast("Save failed", message);
+    }
   };
 
   const visibleItems = items ?? [];
@@ -63,7 +75,10 @@ export default function DiscoverScreen() {
   React.useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => router.push("/items/new")} style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+        <Pressable
+          onPress={() => router.push("/items/new")}
+          style={{ paddingHorizontal: 8, paddingVertical: 4 }}
+        >
           <Plus size={22} color={colors.primary} strokeWidth={2.5} />
         </Pressable>
       ),
@@ -144,28 +159,45 @@ export default function DiscoverScreen() {
         ))}
       </Box>
 
-      <Pressable
-        onPress={() => router.push("/my-exercises")}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          backgroundColor: colors.primaryBg,
-          borderRadius: 14,
-          padding: 14,
-          gap: 12,
-        }}
-      >
-        <FolderOpen size={20} color={colors.primary} strokeWidth={2} />
-        <Box style={{ flex: 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
-            My Exercises
-          </Text>
-          <Text style={{ fontSize: 13, color: colors.textSecondary }}>
-            Manage your creations & saved exercises
-          </Text>
-        </Box>
-        <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
-      </Pressable>
+      <Box className="flex-row gap-2">
+        <Pressable
+          onPress={() => router.push("/my-exercises")}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: colors.primaryBg,
+            borderRadius: 14,
+            padding: 14,
+            gap: 12,
+          }}
+        >
+          <FolderOpen size={20} color={colors.primary} strokeWidth={2} />
+          <Box style={{ flex: 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+              My Exercises
+            </Text>
+            <Text style={{ fontSize: 13, color: colors.textSecondary }}>
+              Manage your creations & saved exercises
+            </Text>
+          </Box>
+          <ChevronRight size={18} color={colors.textMuted} strokeWidth={2} />
+        </Pressable>
+        <Pressable
+          onPress={() => router.push("/items/new")}
+          style={{
+            width: 108,
+            borderRadius: 14,
+            backgroundColor: colors.primary,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+          }}
+        >
+          <Plus size={18} color="#fff" strokeWidth={2.5} />
+          <Text style={{ color: "#fff", fontSize: 12, fontWeight: "700" }}>Create</Text>
+        </Pressable>
+      </Box>
 
       {isLoadingItems ? (
         <Box className="py-8 items-center">
@@ -181,11 +213,7 @@ export default function DiscoverScreen() {
             <TrainingItemCard
               key={item._id}
               item={item}
-              onToggleSave={
-                isAuthenticated
-                  ? () => void toggleSave(item._id)
-                  : undefined
-              }
+              onToggleSave={isAuthenticated ? () => void toggleSave(item._id) : undefined}
               saveLabel={savedIds.has(item._id) ? "Unsave" : "Save"}
             />
           ))}

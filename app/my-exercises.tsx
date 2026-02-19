@@ -9,12 +9,14 @@ import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
 import { Plus } from "lucide-react-native";
 import { colors, cardShadow, screenPadding } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 type Tab = "created" | "saved";
 
 export default function MyExercisesScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = React.useState<Tab>("created");
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
 
   const myItems = useQuery(api.trainingItems.listMyItems);
   const deleteItem = useMutation(api.trainingItems.deleteDraft);
@@ -26,6 +28,32 @@ export default function MyExercisesScreen() {
     (activeTab === "created" && myItems === undefined) ||
     (activeTab === "saved" && savedItems === undefined);
 
+  const handleDeleteItem = React.useCallback(
+    async (itemId: string) => {
+      try {
+        await deleteItem({ itemId: itemId as never });
+        showSuccessToast("Exercise deleted.");
+      } catch (deleteError) {
+        const message = showErrorMessage(deleteError, "Could not delete exercise.");
+        showErrorToast("Delete failed", message);
+      }
+    },
+    [deleteItem, showErrorToast, showSuccessToast],
+  );
+
+  const handleUnsaveItem = React.useCallback(
+    async (itemId: string) => {
+      try {
+        await unsaveItem({ itemId: itemId as never });
+        showSuccessToast("Removed from saved exercises.");
+      } catch (unsaveError) {
+        const message = showErrorMessage(unsaveError, "Could not unsave exercise.");
+        showErrorToast("Unsave failed", message);
+      }
+    },
+    [showErrorToast, showSuccessToast, unsaveItem],
+  );
+
   return (
     <ScrollView
       contentContainerStyle={{ ...screenPadding, gap: 16 }}
@@ -35,10 +63,10 @@ export default function MyExercisesScreen() {
         className="flex-row rounded-xl overflow-hidden"
         style={{ backgroundColor: colors.borderLight }}
       >
-        {([
+        {[
           { key: "created" as const, label: "My Creations" },
           { key: "saved" as const, label: "Saved" },
-        ]).map((tab) => (
+        ].map((tab) => (
           <Pressable
             key={tab.key}
             onPress={() => setActiveTab(tab.key)}
@@ -95,7 +123,7 @@ export default function MyExercisesScreen() {
                   item={item}
                   onPressPrimary={() => router.push(`/items/${item._id}`)}
                   primaryLabel="Edit"
-                  onPressSecondary={() => void deleteItem({ itemId: item._id })}
+                  onPressSecondary={() => void handleDeleteItem(item._id)}
                   secondaryLabel="Delete"
                 />
               ))}
@@ -115,7 +143,7 @@ export default function MyExercisesScreen() {
                   <TrainingItemCard
                     key={entry._id}
                     item={entry.item}
-                    onToggleSave={() => void unsaveItem({ itemId: entry.item!._id })}
+                    onToggleSave={() => void handleUnsaveItem(entry.item!._id)}
                     saveLabel="Unsave"
                   />
                 ) : null,
