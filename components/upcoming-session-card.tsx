@@ -86,8 +86,13 @@ export function UpcomingSessionCard({
         }
       >
         <Box className="flex-row gap-2">
-          <Button className="rounded-xl flex-1" onPress={onStart}>
-            <Play size={startIconSize} color="#fff" strokeWidth={2.5} />
+          <Button
+            variant="outline"
+            className="rounded-xl flex-1"
+            style={{ backgroundColor: colors.primaryBg, borderColor: colors.primaryBgSubtle }}
+            onPress={onStart}
+          >
+            <Play size={startIconSize} color={colors.primary} strokeWidth={2.5} />
             <ButtonText className={startButtonTextClassName}>{startLabel}</ButtonText>
           </Button>
           <Button variant="outline" className="rounded-xl" onPress={onDone}>
