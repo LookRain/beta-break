@@ -20,7 +20,12 @@ import { SessionCard } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
 import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, calendarTheme, screenPadding } from "@/lib/theme";
-import { HANG_CRIMP_TYPES, HANG_EDGE_MM_OPTIONS, HANG_EQUIPMENT_OPTIONS } from "@/lib/trainingItemFilters";
+import {
+  HANG_CRIMP_TYPES,
+  HANG_EDGE_MM_OPTIONS,
+  HANG_EQUIPMENT_OPTIONS,
+} from "@/lib/trainingItemFilters";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 type SessionOverrides = {
   weight?: number;
@@ -168,9 +173,7 @@ const trainingTypeLabel: Record<string, string> = {
 function OverrideUnavailableOverlay() {
   return (
     <Box pointerEvents="none" style={sectionOverlayStyle}>
-      <Text className="text-xs font-semibold text-typography-500">
-        Override not available
-      </Text>
+      <Text className="text-xs font-semibold text-typography-500">Override not available</Text>
     </Box>
   );
 }
@@ -190,6 +193,7 @@ function buildEditDraft(base: SessionOverrides, overrides: SessionOverrides): Se
 export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const { isAuthenticated } = useConvexAuth();
   const todayStr = localTodayString();
   const [selectedDate, setSelectedDate] = React.useState(todayStr);
@@ -203,7 +207,10 @@ export default function CalendarScreen() {
   const myItems = useQuery(api.trainingItems.listMyItems);
   const savedItems = useQuery(api.savedItems.listSavedItems);
   const profile = useQuery(api.profiles.getMyProfile);
-  const sessionsResult = useQuery(api.trainingSchedule.listCalendarSessionsInRange, { rangeStart, rangeEnd });
+  const sessionsResult = useQuery(api.trainingSchedule.listCalendarSessionsInRange, {
+    rangeStart,
+    rangeEnd,
+  });
 
   const ensureRecurringCoverage = useMutation(api.trainingSchedule.ensureRecurringCoverage);
   const addSession = useMutation(api.trainingSchedule.addSession);
@@ -285,14 +292,21 @@ export default function CalendarScreen() {
   }, [overrideSessionId, sessions]);
 
   const markedDates = React.useMemo(() => {
-    const marks: Record<string, { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string }> = {};
+    const marks: Record<
+      string,
+      { marked?: boolean; dotColor?: string; selected?: boolean; selectedColor?: string }
+    > = {};
     for (const session of sessions) {
       const key = toDayString(session.scheduledFor);
       const isCompleted = !!session.completedAt;
       const isPast = session.scheduledFor < serverToday && !isCompleted;
       marks[key] = {
         marked: true,
-        dotColor: isCompleted ? colors.calendar.dotCompleted : isPast ? colors.calendar.dotPast : colors.calendar.dotUpcoming,
+        dotColor: isCompleted
+          ? colors.calendar.dotCompleted
+          : isPast
+            ? colors.calendar.dotPast
+            : colors.calendar.dotUpcoming,
       };
     }
     marks[selectedDate] = {
@@ -311,7 +325,10 @@ export default function CalendarScreen() {
     [selectedDate, sessions],
   );
   const selectedDayUpcomingSessions = React.useMemo(
-    () => selectedDaySessions.filter((session) => !session.completedAt && session.scheduledFor >= serverToday),
+    () =>
+      selectedDaySessions.filter(
+        (session) => !session.completedAt && session.scheduledFor >= serverToday,
+      ),
     [selectedDaySessions, serverToday],
   );
   const selectedDayPastCount = selectedDaySessions.length - selectedDayUpcomingSessions.length;
@@ -388,6 +405,49 @@ export default function CalendarScreen() {
     [profile?.bodyWeightKg],
   );
 
+  const handleCompleteSession = React.useCallback(
+    async (sessionId: string) => {
+      try {
+        await completeSession({ sessionId: sessionId as never });
+        showSuccessToast("Session marked complete.");
+      } catch (completeError) {
+        const message = showErrorMessage(completeError, "Could not complete session.");
+        showErrorToast("Could not complete session", message);
+      }
+    },
+    [completeSession, showErrorToast, showSuccessToast],
+  );
+
+  const handleDelaySessionByWeek = React.useCallback(
+    async (sessionId: string, scheduledFor: number, overrides: SessionOverrides) => {
+      try {
+        await updateUpcomingSession({
+          sessionId: sessionId as never,
+          scheduledFor: addDays(scheduledFor, 7),
+          overrides,
+        });
+        showSuccessToast("Session moved by 7 days.");
+      } catch (delayError) {
+        const message = showErrorMessage(delayError, "Could not move session.");
+        showErrorToast("Could not move session", message);
+      }
+    },
+    [showErrorToast, showSuccessToast, updateUpcomingSession],
+  );
+
+  const handleRemoveUpcomingSession = React.useCallback(
+    async (sessionId: string) => {
+      try {
+        await removeUpcomingSession({ sessionId: sessionId as never });
+        showSuccessToast("Session removed.");
+      } catch (removeError) {
+        const message = showErrorMessage(removeError, "Could not remove session.");
+        showErrorToast("Could not remove session", message);
+      }
+    },
+    [removeUpcomingSession, showErrorToast, showSuccessToast],
+  );
+
   const onAdd = async () => {
     if (!selectedItemId) {
       setError("Select an exercise first.");
@@ -399,6 +459,7 @@ export default function CalendarScreen() {
     try {
       if (scheduleMode === "single") {
         await addSession({ trainingItemId: selectedItemId as never, scheduledFor });
+        showSuccessToast("Session added to your plan.");
       } else {
         const interval = Math.max(1, Math.floor(Number(intervalInput) || 1));
         const until =
@@ -408,13 +469,21 @@ export default function CalendarScreen() {
         await addRecurringSeries({
           trainingItemId: selectedItemId as never,
           startDate: scheduledFor,
-          recurrence: { frequency, interval, byWeekdays: frequency === "weekly" ? weeklyDays : undefined, until },
+          recurrence: {
+            frequency,
+            interval,
+            byWeekdays: frequency === "weekly" ? weeklyDays : undefined,
+            until,
+          },
         });
         await ensureRecurringCoverage({ rangeStart, rangeEnd });
+        showSuccessToast("Recurring series created.");
       }
       setScheduleSheetOpen(false);
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : "Could not schedule session.");
+      const message = showErrorMessage(addError, "Could not schedule session.");
+      setError(message);
+      showErrorToast("Could not schedule session", message);
     }
   };
 
@@ -440,143 +509,146 @@ export default function CalendarScreen() {
           contentContainerStyle={{ ...screenPadding, gap: 16, paddingBottom: pageBottomPadding }}
           style={{ backgroundColor: colors.bg }}
         >
-        <PageHeader
-          title="Plan"
-          rightSlot={(
-            <Pressable
-              onPress={() => setScheduleSheetOpen(true)}
-              style={{
-                backgroundColor: colors.primary,
-                borderRadius: 12,
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <Plus size={16} color="#fff" strokeWidth={2.5} />
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Add session</Text>
-            </Pressable>
-          )}
-        />
-
-        <Box className="rounded-2xl overflow-hidden" style={{ ...cardShadow, backgroundColor: colors.bgCard, padding: 8 }}>
-          <Calendar
-            current={visibleMonth}
-            onDayPress={(day) => setSelectedDate(day.dateString)}
-            onMonthChange={(month) => setVisibleMonth(month.dateString)}
-            markedDates={markedDates}
-            theme={calendarTheme}
+          <PageHeader
+            title="Plan"
+            rightSlot={
+              <Pressable
+                onPress={() => setScheduleSheetOpen(true)}
+                style={{
+                  backgroundColor: colors.primary,
+                  borderRadius: 12,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <Plus size={16} color="#fff" strokeWidth={2.5} />
+                <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Add session</Text>
+              </Pressable>
+            }
           />
-        </Box>
 
-        <Box className="gap-3">
-          <Box className="flex-row items-center justify-between">
-            <Text className="text-lg font-bold text-typography-900">
-              {formatDateLabel(selectedDate)}
-            </Text>
-            {selectedDayPastCount > 0 ? (
-              <Text className="text-xs text-typography-400">
-                +{selectedDayPastCount} past
-              </Text>
-            ) : null}
+          <Box
+            className="rounded-2xl overflow-hidden"
+            style={{ ...cardShadow, backgroundColor: colors.bgCard, padding: 8 }}
+          >
+            <Calendar
+              current={visibleMonth}
+              onDayPress={(day) => setSelectedDate(day.dateString)}
+              onMonthChange={(month) => setVisibleMonth(month.dateString)}
+              markedDates={markedDates}
+              theme={calendarTheme}
+            />
           </Box>
 
-          {selectedDayUpcomingSessions.length === 0 ? (
-            <Box
-              className="rounded-2xl p-5 items-center"
-              style={{ ...cardShadow, backgroundColor: colors.bgCard }}
-            >
-              <Text className="text-typography-500 text-center text-sm">
-                No upcoming sessions on this day.
+          <Box className="gap-3">
+            <Box className="flex-row items-center justify-between">
+              <Text className="text-lg font-bold text-typography-900">
+                {formatDateLabel(selectedDate)}
               </Text>
+              {selectedDayPastCount > 0 ? (
+                <Text className="text-xs text-typography-400">+{selectedDayPastCount} past</Text>
+              ) : null}
             </Box>
-          ) : null}
 
-          {selectedDayUpcomingSessions.map((session) => {
-            const editable = !session.completedAt && session.scheduledFor >= serverToday;
-            const isExpanded = expandedSessionId === session._id;
-            return (
-              <UpcomingSessionCard
-                key={session._id}
-                session={session}
-                isExpanded={isExpanded}
-                onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
-                onStart={() => router.push({ pathname: "/timer", params: { sessionId: session._id } })}
-                onDone={() => void completeSession({ sessionId: session._id })}
-                startLabel="Timer"
-                startIconSize={14}
-                startButtonTextClassName="font-semibold text-sm"
-                doneButtonTextClassName="text-sm"
-                showReadyBadge={false}
-                expandedContent={
-                  editable ? (
-                    <Box className="flex-row flex-wrap gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl"
-                        onPress={() => {
-                          setOverrideError(null);
-                          setEditDrafts((prev) => ({
-                            ...prev,
-                            [session._id]: buildEditDraft(
-                              session.snapshot.variables,
+            {selectedDayUpcomingSessions.length === 0 ? (
+              <Box
+                className="rounded-2xl p-5 items-center"
+                style={{ ...cardShadow, backgroundColor: colors.bgCard }}
+              >
+                <Text className="text-typography-500 text-center text-sm">
+                  No upcoming sessions on this day.
+                </Text>
+              </Box>
+            ) : null}
+
+            {selectedDayUpcomingSessions.map((session) => {
+              const editable = !session.completedAt && session.scheduledFor >= serverToday;
+              const isExpanded = expandedSessionId === session._id;
+              return (
+                <UpcomingSessionCard
+                  key={session._id}
+                  session={session}
+                  isExpanded={isExpanded}
+                  onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
+                  onStart={() =>
+                    router.push({ pathname: "/timer", params: { sessionId: session._id } })
+                  }
+                  onDone={() => void handleCompleteSession(session._id)}
+                  startLabel="Timer"
+                  startIconSize={14}
+                  startButtonTextClassName="font-semibold text-sm"
+                  doneButtonTextClassName="text-sm"
+                  showReadyBadge={false}
+                  expandedContent={
+                    editable ? (
+                      <Box className="flex-row flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          onPress={() => {
+                            setOverrideError(null);
+                            setEditDrafts((prev) => ({
+                              ...prev,
+                              [session._id]: buildEditDraft(
+                                session.snapshot.variables,
+                                session.overrides,
+                              ),
+                            }));
+                            setOverrideSessionId(session._id);
+                          }}
+                        >
+                          <ButtonText className="text-xs">Override</ButtonText>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl"
+                          onPress={() =>
+                            void handleDelaySessionByWeek(
+                              session._id,
+                              session.scheduledFor,
                               session.overrides,
-                            ),
-                          }));
-                          setOverrideSessionId(session._id);
-                        }}
-                      >
-                        <ButtonText className="text-xs">Override</ButtonText>
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-xl"
-                        onPress={() =>
-                          void updateUpcomingSession({
-                            sessionId: session._id,
-                            scheduledFor: addDays(session.scheduledFor, 7),
-                            overrides: session.overrides,
-                          })
-                        }
-                      >
-                        <Clock size={12} color={colors.primary} strokeWidth={2} />
-                        <ButtonText className="text-xs">+7d</ButtonText>
-                      </Button>
-                      <Button
-                        size="sm"
-                        action="negative"
-                        variant="outline"
-                        className="rounded-xl"
-                        onPress={() => void removeUpcomingSession({ sessionId: session._id })}
-                      >
-                        <Trash2 size={12} color={colors.error} strokeWidth={2} />
-                        <ButtonText className="text-xs">Remove</ButtonText>
-                      </Button>
-                    </Box>
-                  ) : null
-                }
-              />
-            );
-          })}
-        </Box>
+                            )
+                          }
+                        >
+                          <Clock size={12} color={colors.primary} strokeWidth={2} />
+                          <ButtonText className="text-xs">+7d</ButtonText>
+                        </Button>
+                        <Button
+                          size="sm"
+                          action="negative"
+                          variant="outline"
+                          className="rounded-xl"
+                          onPress={() => void handleRemoveUpcomingSession(session._id)}
+                        >
+                          <Trash2 size={12} color={colors.error} strokeWidth={2} />
+                          <ButtonText className="text-xs">Remove</ButtonText>
+                        </Button>
+                      </Box>
+                    ) : null
+                  }
+                />
+              );
+            })}
+          </Box>
 
-        <Button
-          variant="outline"
-          className="rounded-xl"
-          onPress={() => router.push("/plan-history")}
-        >
-          <ButtonText>View Past Sessions</ButtonText>
-        </Button>
+          <Button
+            variant="outline"
+            className="rounded-xl"
+            onPress={() => router.push("/plan-history")}
+          >
+            <ButtonText>View Past Sessions</ButtonText>
+          </Button>
         </ScrollView>
       </KeyboardAvoidingView>
 
       <Actionsheet isOpen={scheduleSheetOpen} onClose={() => setScheduleSheetOpen(false)}>
         <ActionsheetBackdrop />
-        <ActionsheetContent className="min-h-[65%] max-h-[90%]">
+        <ActionsheetContent className="max-h-[90%]">
           <ActionsheetDragIndicatorWrapper>
             <ActionsheetDragIndicator />
           </ActionsheetDragIndicatorWrapper>
@@ -590,130 +662,194 @@ export default function CalendarScreen() {
               automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               contentInsetAdjustmentBehavior="automatic"
               style={{ width: "100%" }}
-              contentContainerStyle={{ gap: 12, paddingHorizontal: 4, paddingBottom: sheetBottomPadding }}
+              contentContainerStyle={{
+                gap: 12,
+                paddingHorizontal: 4,
+                paddingBottom: sheetBottomPadding,
+              }}
             >
               <Box className="gap-4">
-              <Text className="text-xl font-bold text-typography-900">
-                Schedule on {formatDateLabel(selectedDate)}
-              </Text>
+                <Text className="text-xl font-bold text-typography-900">
+                  Schedule on {formatDateLabel(selectedDate)}
+                </Text>
 
-              <Box className="flex-row gap-2">
-                {(["single", "recurring"] as const).map((mode) => (
-                  <Pressable
-                    key={mode}
-                    onPress={() => setScheduleMode(mode)}
-                    style={{
-                      flex: 1,
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      backgroundColor: scheduleMode === mode ? colors.primary : colors.borderLight,
-                    }}
-                  >
-                    <Text
+                <Box className="flex-row gap-2">
+                  {(["single", "recurring"] as const).map((mode) => (
+                    <Pressable
+                      key={mode}
+                      onPress={() => setScheduleMode(mode)}
                       style={{
-                        fontWeight: "600",
-                        fontSize: 14,
-                        color: scheduleMode === mode ? "#fff" : colors.text,
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        alignItems: "center",
+                        backgroundColor:
+                          scheduleMode === mode ? colors.primary : colors.borderLight,
                       }}
                     >
-                      {mode === "single" ? "One-time" : "Recurring"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </Box>
-
-              <Box className="gap-2">
-                <Text className="text-xs font-semibold text-typography-400 uppercase tracking-wide">
-                  Exercise
-                </Text>
-                <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
-                  <Box className="flex-row flex-wrap gap-2">
-                    {libraryItems.map((item) => (
-                      <Pressable
-                        key={item._id}
-                        onPress={() => setSelectedItemId(item._id)}
+                      <Text
                         style={{
-                          paddingHorizontal: 14,
-                          paddingVertical: 8,
-                          borderRadius: 20,
-                          backgroundColor: selectedItemId === item._id ? colors.primary : colors.borderLight,
+                          fontWeight: "600",
+                          fontSize: 14,
+                          color: scheduleMode === mode ? "#fff" : colors.text,
                         }}
                       >
-                        <Text
-                          style={{
-                            fontSize: 13,
-                            fontWeight: "600",
-                            color: selectedItemId === item._id ? "#fff" : colors.text,
-                          }}
-                        >
-                          {item.title}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </Box>
-                </ScrollView>
-              </Box>
+                        {mode === "single" ? "One-time" : "Recurring"}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </Box>
 
-              {scheduleMode === "recurring" ? (
-                <Box className="gap-3">
+                <Box className="gap-2">
                   <Text className="text-xs font-semibold text-typography-400 uppercase tracking-wide">
-                    Recurrence
+                    Exercise
                   </Text>
-                  <Box className="flex-row gap-2">
-                    {(["daily", "weekly", "monthly"] as const).map((option) => (
-                      <Pressable
-                        key={option}
-                        onPress={() => setFrequency(option)}
-                        style={{
-                          flex: 1,
-                          paddingVertical: 8,
-                          borderRadius: 10,
-                          alignItems: "center",
-                          backgroundColor: frequency === option ? colors.primary : colors.borderLight,
-                        }}
-                      >
-                        <Text style={{ fontSize: 13, fontWeight: "600", color: frequency === option ? "#fff" : colors.text }}>
-                          {option.charAt(0).toUpperCase() + option.slice(1)}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </Box>
-                  <TextInput
-                    value={intervalInput}
-                    onChangeText={setIntervalInput}
-                    placeholder="Interval (e.g. every 1 week)"
-                    placeholderTextColor={colors.textMuted}
-                    keyboardType="numeric"
-                    style={inputStyle}
-                  />
-                  {frequency === "weekly" ? (
-                    <Box className="flex-row flex-wrap gap-2">
-                      {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((label, dayIndex) => (
-                        <Pressable
-                          key={label}
-                          onPress={() =>
-                            setWeeklyDays((prev) =>
-                              prev.includes(dayIndex) ? prev.filter((v) => v !== dayIndex) : [...prev, dayIndex],
-                            )
-                          }
-                          style={{
-                            width: 40, height: 40,
-                            borderRadius: 20,
-                            alignItems: "center", justifyContent: "center",
-                            backgroundColor: weeklyDays.includes(dayIndex) ? colors.primary : colors.borderLight,
+                  {libraryItems.length > 0 ? (
+                    <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
+                      <Box className="flex-row flex-wrap gap-2">
+                        {libraryItems.map((item) => (
+                          <Pressable
+                            key={item._id}
+                            onPress={() => setSelectedItemId(item._id)}
+                            style={{
+                              paddingHorizontal: 14,
+                              paddingVertical: 8,
+                              borderRadius: 20,
+                              backgroundColor:
+                                selectedItemId === item._id ? colors.primary : colors.borderLight,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 13,
+                                fontWeight: "600",
+                                color: selectedItemId === item._id ? "#fff" : colors.text,
+                              }}
+                            >
+                              {item.title}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </Box>
+                    </ScrollView>
+                  ) : (
+                    <Box
+                      className="rounded-xl p-4 gap-3"
+                      style={{ backgroundColor: colors.borderLight }}
+                    >
+                      <Text className="text-sm text-typography-600">
+                        No exercises yet. Create one now, or open the Exercises tab to browse and
+                        save.
+                      </Text>
+                      <Box className="flex-row gap-2">
+                        <Button
+                          className="flex-1 rounded-xl"
+                          onPress={() => {
+                            setScheduleSheetOpen(false);
+                            router.push("/items/new");
                           }}
                         >
-                          <Text style={{ fontSize: 12, fontWeight: "700", color: weeklyDays.includes(dayIndex) ? "#fff" : colors.text }}>
-                            {label}
+                          <ButtonText className="font-semibold text-sm">Create exercise</ButtonText>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="flex-1 rounded-xl"
+                          onPress={() => {
+                            setScheduleSheetOpen(false);
+                            router.push("/tabs/discover");
+                          }}
+                        >
+                          <ButtonText className="text-sm">Open Exercises</ButtonText>
+                        </Button>
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+
+                {scheduleMode === "recurring" ? (
+                  <Box className="gap-3">
+                    <Text className="text-xs font-semibold text-typography-400 uppercase tracking-wide">
+                      Recurrence
+                    </Text>
+                    <Box className="flex-row gap-2">
+                      {(["daily", "weekly", "monthly"] as const).map((option) => (
+                        <Pressable
+                          key={option}
+                          onPress={() => setFrequency(option)}
+                          style={{
+                            flex: 1,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                            alignItems: "center",
+                            backgroundColor:
+                              frequency === option ? colors.primary : colors.borderLight,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "600",
+                              color: frequency === option ? "#fff" : colors.text,
+                            }}
+                          >
+                            {option.charAt(0).toUpperCase() + option.slice(1)}
                           </Text>
                         </Pressable>
                       ))}
                     </Box>
-                  ) : null}
-                  <Box className="flex-row gap-2 flex-wrap">
-                    {([["none", "No end"], ["3m", "3 months"], ["6m", "6 months"], ["12m", "1 year"]] as const).map(
-                      ([mode, label]) => (
+                    <TextInput
+                      value={intervalInput}
+                      onChangeText={setIntervalInput}
+                      placeholder="Interval (e.g. every 1 week)"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="numeric"
+                      style={inputStyle}
+                    />
+                    {frequency === "weekly" ? (
+                      <Box className="flex-row flex-wrap gap-2">
+                        {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((label, dayIndex) => (
+                          <Pressable
+                            key={label}
+                            onPress={() =>
+                              setWeeklyDays((prev) =>
+                                prev.includes(dayIndex)
+                                  ? prev.filter((v) => v !== dayIndex)
+                                  : [...prev, dayIndex],
+                              )
+                            }
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 20,
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: weeklyDays.includes(dayIndex)
+                                ? colors.primary
+                                : colors.borderLight,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontSize: 12,
+                                fontWeight: "700",
+                                color: weeklyDays.includes(dayIndex) ? "#fff" : colors.text,
+                              }}
+                            >
+                              {label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </Box>
+                    ) : null}
+                    <Box className="flex-row gap-2 flex-wrap">
+                      {(
+                        [
+                          ["none", "No end"],
+                          ["3m", "3 months"],
+                          ["6m", "6 months"],
+                          ["12m", "1 year"],
+                        ] as const
+                      ).map(([mode, label]) => (
                         <Pressable
                           key={mode}
                           onPress={() => setEndMode(mode as typeof endMode)}
@@ -724,32 +860,41 @@ export default function CalendarScreen() {
                             backgroundColor: endMode === mode ? colors.primary : colors.borderLight,
                           }}
                         >
-                          <Text style={{ fontSize: 13, fontWeight: "600", color: endMode === mode ? "#fff" : colors.text }}>
+                          <Text
+                            style={{
+                              fontSize: 13,
+                              fontWeight: "600",
+                              color: endMode === mode ? "#fff" : colors.text,
+                            }}
+                          >
                             {label}
                           </Text>
                         </Pressable>
-                      ),
-                    )}
+                      ))}
+                    </Box>
                   </Box>
+                ) : null}
+
+                <Box className="rounded-xl p-3" style={{ backgroundColor: colors.borderLight }}>
+                  <Text className="text-sm text-typography-600">
+                    You can have overrides on the parameter after you schedule your session.
+                  </Text>
                 </Box>
-              ) : null}
 
-              <Box className="rounded-xl p-3" style={{ backgroundColor: colors.borderLight }}>
-                <Text className="text-sm text-typography-600">
-                  You can have overrides on the parameter after you schedule your session.
-                </Text>
-              </Box>
-
-              <Box className="flex-row gap-2">
-                <Button className="flex-1 rounded-xl" onPress={() => void onAdd()}>
-                  <ButtonText className="font-semibold">
-                    {scheduleMode === "single" ? "Add session" : "Create series"}
-                  </ButtonText>
-                </Button>
-                <Button variant="outline" className="rounded-xl" onPress={() => setScheduleSheetOpen(false)}>
-                  <ButtonText>Cancel</ButtonText>
-                </Button>
-              </Box>
+                <Box className="flex-row gap-2">
+                  <Button className="flex-1 rounded-xl" onPress={() => void onAdd()}>
+                    <ButtonText className="font-semibold">
+                      {scheduleMode === "single" ? "Add session" : "Create series"}
+                    </ButtonText>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    onPress={() => setScheduleSheetOpen(false)}
+                  >
+                    <ButtonText>Cancel</ButtonText>
+                  </Button>
+                </Box>
                 {error ? (
                   <Box className="rounded-xl p-3" style={{ backgroundColor: colors.errorBg }}>
                     <Text className="text-error-600 text-sm">{error}</Text>
@@ -783,13 +928,15 @@ export default function CalendarScreen() {
               automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
               contentInsetAdjustmentBehavior="automatic"
               style={{ width: "100%" }}
-              contentContainerStyle={{ gap: 12, paddingHorizontal: 4, paddingBottom: sheetBottomPadding }}
+              contentContainerStyle={{
+                gap: 12,
+                paddingHorizontal: 4,
+                paddingBottom: sheetBottomPadding,
+              }}
             >
               {overrideSession && overrideDraft ? (
                 <Box className="gap-4">
-                  <Text className="text-xl font-bold text-typography-900">
-                    Override session
-                  </Text>
+                  <Text className="text-xl font-bold text-typography-900">Override session</Text>
 
                   <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
                     <Text className="text-base font-semibold text-typography-900">Essentials</Text>
@@ -800,7 +947,9 @@ export default function CalendarScreen() {
                     />
                     <TextInput
                       editable={false}
-                      value={trainingTypeLabel[overrideSession.snapshot.trainingType ?? ""] ?? "Not set"}
+                      value={
+                        trainingTypeLabel[overrideSession.snapshot.trainingType ?? ""] ?? "Not set"
+                      }
                       style={{ ...inputStyle, color: colors.textMuted }}
                     />
                     <TextInput
@@ -861,7 +1010,9 @@ export default function CalendarScreen() {
                   </Box>
 
                   <Box style={sectionCardStyle}>
-                    <Text className="text-base font-semibold text-typography-900">Workout Parameters</Text>
+                    <Text className="text-base font-semibold text-typography-900">
+                      Workout Parameters
+                    </Text>
                     <Box className="flex-row gap-2">
                       <Box className="flex-1">
                         <Text className="text-xs text-typography-500 mb-1">Sets</Text>
@@ -922,7 +1073,9 @@ export default function CalendarScreen() {
 
                   {overrideSession.snapshot.trainingType === "hang" ? (
                     <Box style={[sectionCardStyle, sectionOverlayContainerStyle]}>
-                      <Text className="text-base font-semibold text-typography-900">Hang Details</Text>
+                      <Text className="text-base font-semibold text-typography-900">
+                        Hang Details
+                      </Text>
                       <Box className="flex-row gap-2">
                         {HANG_EQUIPMENT_OPTIONS.map((option) => (
                           <Pressable
@@ -1028,8 +1181,8 @@ export default function CalendarScreen() {
                   <Box style={sectionCardStyle}>
                     <Text className="text-base font-semibold text-typography-900">Load</Text>
                     <Text className="text-xs text-typography-500">
-                      Usually for hang exercises: 100% means no extra weight, 80% means
-                      assisted, and 120% means added weight.
+                      Usually for hang exercises: 100% means no extra weight, 80% means assisted,
+                      and 120% means added weight.
                     </Text>
                     {profile?.bodyWeightKg ? (
                       <Text className="text-xs text-typography-500">
@@ -1092,9 +1245,7 @@ export default function CalendarScreen() {
                     </Box>
                     <TextInput
                       placeholder={
-                        overrideDraft.weightInputMode === "percent"
-                          ? "Load (% BW)"
-                          : "Load (kg)"
+                        overrideDraft.weightInputMode === "percent" ? "Load (% BW)" : "Load (kg)"
                       }
                       placeholderTextColor={colors.textMuted}
                       value={overrideDraft.weight}
@@ -1163,12 +1314,14 @@ export default function CalendarScreen() {
                             overrides,
                           });
                           setOverrideSessionId(null);
+                          showSuccessToast("Session override saved.");
                         } catch (saveError) {
-                          setOverrideError(
-                            saveError instanceof Error
-                              ? saveError.message
-                              : "Could not save session override.",
+                          const message = showErrorMessage(
+                            saveError,
+                            "Could not save session override.",
                           );
+                          setOverrideError(message);
+                          showErrorToast("Could not save override", message);
                         } finally {
                           setIsSavingOverride(false);
                         }
@@ -1200,12 +1353,14 @@ export default function CalendarScreen() {
                               overrides,
                             });
                             setOverrideSessionId(null);
+                            showSuccessToast("Future sessions updated.");
                           } catch (saveError) {
-                            setOverrideError(
-                              saveError instanceof Error
-                                ? saveError.message
-                                : "Could not save recurring overrides.",
+                            const message = showErrorMessage(
+                              saveError,
+                              "Could not save recurring overrides.",
                             );
+                            setOverrideError(message);
+                            showErrorToast("Could not save recurring override", message);
                           } finally {
                             setIsSavingOverride(false);
                           }

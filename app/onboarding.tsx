@@ -7,6 +7,7 @@ import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
 import { colors, inputStyle } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 function parseBodyWeight(value: string): number | undefined {
   const parsed = Number(value.trim());
@@ -18,6 +19,7 @@ function parseBodyWeight(value: string): number | undefined {
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const { isAuthenticated } = useConvexAuth();
   const profile = useQuery(api.profiles.getMyProfile);
   const upsertProfile = useMutation(api.profiles.upsertMyProfile);
@@ -79,9 +81,12 @@ export default function OnboardingScreen() {
         showProfilePublic: profile?.showProfilePublic ?? true,
         showHistoryPublic: profile?.showHistoryPublic ?? true,
       });
+      showSuccessToast("Profile saved.");
       router.replace("/tabs/train");
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Could not save profile.");
+      const message = showErrorMessage(submitError, "Could not save profile.");
+      setError(message);
+      showErrorToast("Could not save profile", message);
     } finally {
       setIsSubmitting(false);
     }

@@ -1,5 +1,12 @@
 import React from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text as RNText, TextInput } from "react-native";
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text as RNText,
+  TextInput,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { useMutation, useQuery } from "convex/react";
@@ -21,6 +28,7 @@ import { SessionCard } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
 import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, screenPadding } from "@/lib/theme";
+import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
 type SessionOverrides = {
   weight?: number;
@@ -58,8 +66,20 @@ function toDayString(timestamp: number): string {
 }
 
 function mergeVariables(
-  base: { weight?: number; reps?: number; sets?: number; restSeconds?: number; durationSeconds?: number },
-  overrides: { weight?: number; reps?: number; sets?: number; restSeconds?: number; durationSeconds?: number },
+  base: {
+    weight?: number;
+    reps?: number;
+    sets?: number;
+    restSeconds?: number;
+    durationSeconds?: number;
+  },
+  overrides: {
+    weight?: number;
+    reps?: number;
+    sets?: number;
+    restSeconds?: number;
+    durationSeconds?: number;
+  },
 ) {
   return {
     weight: overrides.weight ?? base.weight,
@@ -113,11 +133,15 @@ function buildEditDraft(base: SessionOverrides, overrides: SessionOverrides): Se
 export default function TrainScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const today = startOfDay(Date.now());
   const tomorrow = today + 24 * 60 * 60 * 1000;
   const { rangeStart, rangeEnd } = React.useMemo(() => monthRangeFor(today), [today]);
 
-  const sessionsResult = useQuery(api.trainingSchedule.listCalendarSessionsInRange, { rangeStart, rangeEnd });
+  const sessionsResult = useQuery(api.trainingSchedule.listCalendarSessionsInRange, {
+    rangeStart,
+    rangeEnd,
+  });
   const myItems = useQuery(api.trainingItems.listMyItems);
   const savedItems = useQuery(api.savedItems.listSavedItems);
   const profile = useQuery(api.profiles.getMyProfile);
@@ -174,11 +198,14 @@ export default function TrainScreen() {
     try {
       const session = await startImpromptuSession({ trainingItemId: trainingItemId as never });
       setDialogOpen(false);
+      showSuccessToast("Session started.");
       if (session?._id) {
         router.push({ pathname: "/timer", params: { sessionId: session._id } });
       }
     } catch (error) {
-      setDialogError(error instanceof Error ? error.message : "Could not start impromptu session.");
+      const message = showErrorMessage(error, "Could not start impromptu session.");
+      setDialogError(message);
+      showErrorToast("Could not start session", message);
     }
   };
 
@@ -281,6 +308,19 @@ export default function TrainScreen() {
     [profile?.bodyWeightKg],
   );
 
+  const handleCompleteSession = React.useCallback(
+    async (sessionId: string) => {
+      try {
+        await completeSession({ sessionId: sessionId as never });
+        showSuccessToast("Session marked complete.");
+      } catch (completeError) {
+        const message = showErrorMessage(completeError, "Could not complete session.");
+        showErrorToast("Could not complete session", message);
+      }
+    },
+    [completeSession, showErrorToast, showSuccessToast],
+  );
+
   if (sessionsResult === undefined || myItems === undefined || savedItems === undefined) {
     return (
       <Box className="flex-1 items-center justify-center">
@@ -305,14 +345,18 @@ export default function TrainScreen() {
               className="flex-1 rounded-2xl p-4 items-center"
               style={{ backgroundColor: colors.primaryBg }}
             >
-              <Text className="text-2xl font-bold" style={{ color: colors.primary }}>{pendingCount}</Text>
+              <Text className="text-2xl font-bold" style={{ color: colors.primary }}>
+                {pendingCount}
+              </Text>
               <Text className="text-xs font-semibold text-typography-500 mt-1">REMAINING</Text>
             </Box>
             <Box
               className="flex-1 rounded-2xl p-4 items-center"
               style={{ backgroundColor: colors.successBg }}
             >
-              <Text className="text-2xl font-bold" style={{ color: colors.success }}>{completedCount}</Text>
+              <Text className="text-2xl font-bold" style={{ color: colors.success }}>
+                {completedCount}
+              </Text>
               <Text className="text-xs font-semibold text-typography-500 mt-1">COMPLETED</Text>
             </Box>
           </Box>
@@ -336,9 +380,7 @@ export default function TrainScreen() {
         </Pressable>
 
         <Box className="gap-3">
-          <Text className="text-lg font-bold text-typography-900">
-            Scheduled Sessions
-          </Text>
+          <Text className="text-lg font-bold text-typography-900">Scheduled Sessions</Text>
           {todaySessions.length === 0 ? (
             <Box
               className="rounded-2xl p-6 items-center gap-2"
@@ -347,10 +389,7 @@ export default function TrainScreen() {
               <Text className="text-typography-500 text-center">
                 No sessions planned for today.
               </Text>
-              <Button
-                variant="link"
-                onPress={() => router.push("/tabs/calendar")}
-              >
+              <Button variant="link" onPress={() => router.push("/tabs/calendar")}>
                 <ButtonText className="font-semibold">Go to calendar</ButtonText>
               </Button>
             </Box>
@@ -364,8 +403,10 @@ export default function TrainScreen() {
                 session={session}
                 isExpanded={isExpanded}
                 onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
-                onStart={() => router.push({ pathname: "/timer", params: { sessionId: session._id } })}
-                onDone={() => void completeSession({ sessionId: session._id })}
+                onStart={() =>
+                  router.push({ pathname: "/timer", params: { sessionId: session._id } })
+                }
+                onDone={() => void handleCompleteSession(session._id)}
                 expandedContent={
                   <Box className="flex-row flex-wrap gap-2">
                     <Button
@@ -436,9 +477,17 @@ export default function TrainScreen() {
                           finalVariables={final}
                           statusBadge={
                             <Box className="flex-row items-center gap-2">
-                              <Box className="flex-row items-center gap-1 rounded-full px-2.5 py-1" style={{ backgroundColor: colors.successBg }}>
+                              <Box
+                                className="flex-row items-center gap-1 rounded-full px-2.5 py-1"
+                                style={{ backgroundColor: colors.successBg }}
+                              >
                                 <CheckCircle2 size={14} color={colors.success} strokeWidth={2.5} />
-                                <Text className="text-xs font-semibold" style={{ color: colors.success }}>Done</Text>
+                                <Text
+                                  className="text-xs font-semibold"
+                                  style={{ color: colors.success }}
+                                >
+                                  Done
+                                </Text>
                               </Box>
                               <ChevronRight
                                 size={18}
@@ -450,9 +499,7 @@ export default function TrainScreen() {
                           }
                         >
                           {isExpanded ? (
-                            <Text className="text-xs text-typography-500">
-                              Completed session.
-                            </Text>
+                            <Text className="text-xs text-typography-500">Completed session.</Text>
                           ) : null}
                         </SessionCard>
                       </Pressable>
@@ -466,7 +513,7 @@ export default function TrainScreen() {
 
       <Actionsheet isOpen={dialogOpen} onClose={() => setDialogOpen(false)}>
         <ActionsheetBackdrop />
-        <ActionsheetContent className="min-h-[50%] max-h-[80%]">
+        <ActionsheetContent className="max-h-[80%]">
           <ActionsheetDragIndicatorWrapper>
             <ActionsheetDragIndicator />
           </ActionsheetDragIndicatorWrapper>
@@ -485,9 +532,35 @@ export default function TrainScreen() {
                 </ActionsheetItem>
               ))}
               {libraryItems.length === 0 ? (
-                <Text className="text-typography-500 px-4 py-3">
-                  No exercises yet. Create one first.
-                </Text>
+                <Box
+                  className="rounded-xl p-4 gap-3 mx-3 my-2"
+                  style={{ backgroundColor: colors.borderLight }}
+                >
+                  <Text className="text-typography-600 text-sm">
+                    No exercises yet. Create one now, or open the Exercises tab to browse and save.
+                  </Text>
+                  <Box className="flex-row gap-2">
+                    <Button
+                      className="flex-1 rounded-xl"
+                      onPress={() => {
+                        setDialogOpen(false);
+                        router.push("/items/new");
+                      }}
+                    >
+                      <ButtonText className="font-semibold text-sm">Create exercise</ButtonText>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1 rounded-xl"
+                      onPress={() => {
+                        setDialogOpen(false);
+                        router.push("/tabs/discover");
+                      }}
+                    >
+                      <ButtonText className="text-sm">Open Exercises</ButtonText>
+                    </Button>
+                  </Box>
+                </Box>
               ) : null}
             </Box>
           </ScrollView>
@@ -655,9 +728,7 @@ export default function TrainScreen() {
                     </Box>
                     <TextInput
                       placeholder={
-                        overrideDraft.weightInputMode === "percent"
-                          ? "Load (% BW)"
-                          : "Load (kg)"
+                        overrideDraft.weightInputMode === "percent" ? "Load (% BW)" : "Load (kg)"
                       }
                       placeholderTextColor={colors.textMuted}
                       value={overrideDraft.weight}
@@ -689,12 +760,14 @@ export default function TrainScreen() {
                             overrides,
                           });
                           setOverrideSessionId(null);
+                          showSuccessToast("Session override saved.");
                         } catch (saveError) {
-                          setOverrideError(
-                            saveError instanceof Error
-                              ? saveError.message
-                              : "Could not save session override.",
+                          const message = showErrorMessage(
+                            saveError,
+                            "Could not save session override.",
                           );
+                          setOverrideError(message);
+                          showErrorToast("Could not save override", message);
                         } finally {
                           setIsSavingOverride(false);
                         }
@@ -726,12 +799,14 @@ export default function TrainScreen() {
                               overrides,
                             });
                             setOverrideSessionId(null);
+                            showSuccessToast("Future sessions updated.");
                           } catch (saveError) {
-                            setOverrideError(
-                              saveError instanceof Error
-                                ? saveError.message
-                                : "Could not save recurring overrides.",
+                            const message = showErrorMessage(
+                              saveError,
+                              "Could not save recurring overrides.",
                             );
+                            setOverrideError(message);
+                            showErrorToast("Could not save recurring override", message);
                           } finally {
                             setIsSavingOverride(false);
                           }
