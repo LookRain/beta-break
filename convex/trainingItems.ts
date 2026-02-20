@@ -33,11 +33,29 @@ const difficultyValidator = v.union(
   v.literal("advanced"),
 );
 
+function normalizeCategories(input: { category?: string; categories?: string[] }): {
+  category: string;
+  categories: string[];
+} {
+  const merged = [...(input.categories ?? []), ...(input.category ? [input.category] : [])]
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  const categories = Array.from(new Set(merged));
+  if (categories.length === 0) {
+    throw new Error("At least one category is required.");
+  }
+  return {
+    category: categories[0],
+    categories,
+  };
+}
+
 export const createDraft = mutationGeneric({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
-    category: v.string(),
+    category: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
     variables: variablesValidator,
     trainingType: v.optional(trainingTypeValidator),
@@ -50,9 +68,15 @@ export const createDraft = mutationGeneric({
     if (!ownerId) {
       throw new Error("Unauthorized");
     }
+    const normalizedCategories = normalizeCategories({
+      category: args.category,
+      categories: args.categories,
+    });
     const now = Date.now();
     const itemId = await ctx.db.insert("trainingItems", {
       ...args,
+      category: normalizedCategories.category,
+      categories: normalizedCategories.categories,
       ownerId,
       // Keep legacy fields populated for backwards compatibility.
       status: "published",
@@ -69,7 +93,8 @@ export const updateDraft = mutationGeneric({
     itemId: v.id("trainingItems"),
     title: v.string(),
     description: v.optional(v.string()),
-    category: v.string(),
+    category: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
     variables: variablesValidator,
     trainingType: v.optional(trainingTypeValidator),
@@ -82,6 +107,10 @@ export const updateDraft = mutationGeneric({
     if (!ownerId) {
       throw new Error("Unauthorized");
     }
+    const normalizedCategories = normalizeCategories({
+      category: args.category,
+      categories: args.categories,
+    });
     const item = await ctx.db.get(args.itemId);
 
     if (!item) {
@@ -94,7 +123,8 @@ export const updateDraft = mutationGeneric({
     await ctx.db.patch(args.itemId, {
       title: args.title,
       description: args.description,
-      category: args.category,
+      category: normalizedCategories.category,
+      categories: normalizedCategories.categories,
       tags: args.tags,
       variables: args.variables,
       trainingType: args.trainingType,
@@ -197,6 +227,7 @@ export const listPublishedItems = queryGeneric({
   args: {
     searchText: v.optional(v.string()),
     category: v.optional(v.string()),
+    categories: v.optional(v.array(v.string())),
     difficulty: v.optional(difficultyValidator),
     tags: v.optional(v.array(v.string())),
   },
@@ -205,10 +236,22 @@ export const listPublishedItems = queryGeneric({
 
     const normalizedSearch = args.searchText?.trim().toLowerCase();
     const requestedTags = new Set((args.tags ?? []).map((tag) => tag.toLowerCase()));
-
+    const requestedCategories = new Set(
+      [...(args.categories ?? []), ...(args.category ? [args.category] : [])]
+        .map((entry) => entry.toLowerCase().trim())
+        .filter((entry) => entry.length > 0),
+    );
     const filtered = items
       .filter((item) => {
-        if (args.category && item.category !== args.category) {
+        const itemCategories = (
+          item.categories?.length ? item.categories : item.category ? [item.category] : []
+        )
+          .map((entry: string) => entry.toLowerCase().trim())
+          .filter((entry: string) => entry.length > 0);
+        if (
+          requestedCategories.size > 0 &&
+          !itemCategories.some((entry: string) => requestedCategories.has(entry))
+        ) {
           return false;
         }
         if (args.difficulty && item.difficulty !== args.difficulty) {
@@ -223,8 +266,11 @@ export const listPublishedItems = queryGeneric({
           }
         }
         if (normalizedSearch) {
+          const searchableCategories = (
+            item.categories?.length ? item.categories : item.category ? [item.category] : []
+          ).join(" ");
           const haystack =
-            `${item.title} ${item.description ?? ""} ${item.tags.join(" ")}`.toLowerCase();
+            `${item.title} ${item.description ?? ""} ${item.tags.join(" ")} ${searchableCategories}`.toLowerCase();
           if (!haystack.includes(normalizedSearch)) {
             return false;
           }

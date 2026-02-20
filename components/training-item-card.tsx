@@ -12,6 +12,7 @@ type TrainingItemCardItem = {
   title: string;
   description?: string;
   category: string;
+  categories?: string[];
   tags: string[];
   trainingType?: "hang" | "weight_training" | "climbing" | "others";
   hangDetails?: {
@@ -99,6 +100,9 @@ export function TrainingItemCard({
         ? `${weightPercent}% BW${personalizedWeightKg !== undefined ? ` (${personalizedWeightKg}kg for you)` : ""}`
         : null;
   const legacyLoadLabel = weightPercent !== undefined ? `${weightPercent}kg` : null;
+  const itemCategories = (
+    item.categories?.length ? item.categories : item.category ? [item.category] : []
+  ).slice(0, 3);
 
   return (
     <Box
@@ -134,14 +138,15 @@ export function TrainingItemCard({
             {item.difficulty}
           </Text>
         </Box>
-        {item.category ? (
+        {itemCategories.map((category) => (
           <Box
+            key={category}
             className="rounded-full px-2.5 py-0.5"
             style={{ backgroundColor: colors.borderLight }}
           >
-            <Text className="text-xs font-medium text-typography-600">{item.category}</Text>
+            <Text className="text-xs font-medium text-typography-600">{category}</Text>
           </Box>
-        ) : null}
+        ))}
         {trainingTypeText ? (
           <Box className="rounded-full px-2.5 py-0.5" style={{ backgroundColor: "#dbeafe" }}>
             <Text className="text-xs font-medium" style={{ color: "#1d4ed8" }}>

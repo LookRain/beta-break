@@ -11,8 +11,22 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Button, ButtonText } from "@/components/ui/button";
+import {
+  Select,
+  SelectBackdrop,
+  SelectContent,
+  SelectDragIndicator,
+  SelectDragIndicatorWrapper,
+  SelectIcon,
+  SelectInput,
+  SelectItem,
+  SelectPortal,
+  SelectTrigger,
+} from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
+import { ChevronDown } from "lucide-react-native";
 import { parseCommaSeparated, toCommaSeparated } from "@/lib/trainingItemFilters";
+import { BOULDER_GRADES, ROPE_GRADES } from "@/lib/profileGrades";
 import { cardShadow, colors, inputStyle, screenPadding } from "@/lib/theme";
 import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 
@@ -209,33 +223,117 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
             <Box className="flex-row gap-2">
               <Box className="flex-1">
                 <Text className="text-xs text-typography-500 mb-1">Bouldering</Text>
-                <TextInput
-                  placeholder="e.g. V7"
-                  placeholderTextColor={colors.textMuted}
-                  value={boulderingGrade}
-                  onChangeText={setBoulderingGrade}
-                  style={inputStyle}
-                />
+                <Select selectedValue={boulderingGrade} onValueChange={setBoulderingGrade}>
+                  <SelectTrigger
+                    variant="outline"
+                    size="lg"
+                    className="w-full justify-between"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      minHeight: 50,
+                      backgroundColor: colors.bgCard,
+                      paddingHorizontal: 0,
+                    }}
+                  >
+                    <SelectInput
+                      placeholder="Select"
+                      value={boulderingGrade}
+                      className="flex-1 text-left"
+                      style={{ textAlign: "left", color: colors.text }}
+                    />
+                    <SelectIcon as={ChevronDown} className="mr-0" />
+                  </SelectTrigger>
+                  <SelectPortal>
+                    <SelectBackdrop />
+                    <SelectContent>
+                      <SelectDragIndicatorWrapper>
+                        <SelectDragIndicator />
+                      </SelectDragIndicatorWrapper>
+                      <SelectItem label="Not set" value="" />
+                      {BOULDER_GRADES.map((grade) => (
+                        <SelectItem key={grade} label={grade} value={grade} />
+                      ))}
+                    </SelectContent>
+                  </SelectPortal>
+                </Select>
               </Box>
               <Box className="flex-1">
                 <Text className="text-xs text-typography-500 mb-1">Sport</Text>
-                <TextInput
-                  placeholder="e.g. 7a+"
-                  placeholderTextColor={colors.textMuted}
-                  value={sportGrade}
-                  onChangeText={setSportGrade}
-                  style={inputStyle}
-                />
+                <Select selectedValue={sportGrade} onValueChange={setSportGrade}>
+                  <SelectTrigger
+                    variant="outline"
+                    size="lg"
+                    className="w-full justify-between"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      minHeight: 50,
+                      backgroundColor: colors.bgCard,
+                      paddingHorizontal: 0,
+                    }}
+                  >
+                    <SelectInput
+                      placeholder="Select"
+                      value={sportGrade}
+                      className="flex-1 text-left"
+                      style={{ textAlign: "left", color: colors.text }}
+                    />
+                    <SelectIcon as={ChevronDown} className="mr-0" />
+                  </SelectTrigger>
+                  <SelectPortal>
+                    <SelectBackdrop />
+                    <SelectContent>
+                      <SelectDragIndicatorWrapper>
+                        <SelectDragIndicator />
+                      </SelectDragIndicatorWrapper>
+                      <SelectItem label="Not set" value="" />
+                      {ROPE_GRADES.map((grade) => (
+                        <SelectItem key={grade} label={grade} value={grade} />
+                      ))}
+                    </SelectContent>
+                  </SelectPortal>
+                </Select>
               </Box>
               <Box className="flex-1">
                 <Text className="text-xs text-typography-500 mb-1">Trad</Text>
-                <TextInput
-                  placeholder="e.g. 5.10"
-                  placeholderTextColor={colors.textMuted}
-                  value={tradGrade}
-                  onChangeText={setTradGrade}
-                  style={inputStyle}
-                />
+                <Select selectedValue={tradGrade} onValueChange={setTradGrade}>
+                  <SelectTrigger
+                    variant="outline"
+                    size="lg"
+                    className="w-full justify-between"
+                    style={{
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderRadius: 12,
+                      minHeight: 50,
+                      backgroundColor: colors.bgCard,
+                      paddingHorizontal: 0,
+                    }}
+                  >
+                    <SelectInput
+                      placeholder="Select"
+                      value={tradGrade}
+                      className="flex-1 text-left"
+                      style={{ textAlign: "left", color: colors.text }}
+                    />
+                    <SelectIcon as={ChevronDown} className="mr-0" />
+                  </SelectTrigger>
+                  <SelectPortal>
+                    <SelectBackdrop />
+                    <SelectContent>
+                      <SelectDragIndicatorWrapper>
+                        <SelectDragIndicator />
+                      </SelectDragIndicatorWrapper>
+                      <SelectItem label="Not set" value="" />
+                      {ROPE_GRADES.map((grade) => (
+                        <SelectItem key={grade} label={grade} value={grade} />
+                      ))}
+                    </SelectContent>
+                  </SelectPortal>
+                </Select>
               </Box>
             </Box>
           </Box>

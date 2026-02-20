@@ -21,22 +21,22 @@ export default function DiscoverScreen() {
   const { success: showSuccessToast, error: showErrorToast } = useAppToast();
   const { isAuthenticated } = useConvexAuth();
   const [searchText, setSearchText] = React.useState("");
-  const [category, setCategory] = React.useState("");
+  const [categoriesInput, setCategoriesInput] = React.useState("");
   const [difficulty, setDifficulty] = React.useState<"" | "beginner" | "intermediate" | "advanced">(
     "",
   );
   const [tagsInput, setTagsInput] = React.useState("");
   const tags = React.useMemo(() => parseCommaSeparated(tagsInput), [tagsInput]);
+  const categories = React.useMemo(() => parseCommaSeparated(categoriesInput), [categoriesInput]);
   const normalizedSearchText = searchText.trim();
-  const normalizedCategory = category.trim();
   const queryArgs = React.useMemo(
     () => ({
       searchText: normalizedSearchText || undefined,
-      category: normalizedCategory || undefined,
+      categories: categories.length > 0 ? categories : undefined,
       difficulty: difficulty || undefined,
       tags: tags.length > 0 ? tags : undefined,
     }),
-    [normalizedSearchText, normalizedCategory, difficulty, tags],
+    [normalizedSearchText, categories, difficulty, tags],
   );
 
   const items = useQuery(api.trainingItems.listPublishedItems, queryArgs);
@@ -115,9 +115,9 @@ export default function DiscoverScreen() {
       <Box className="flex-row gap-2">
         <Box className="flex-1">
           <TextInput
-            value={category}
-            onChangeText={setCategory}
-            placeholder="Category"
+            value={categoriesInput}
+            onChangeText={setCategoriesInput}
+            placeholder="Categories (comma separated)"
             placeholderTextColor={colors.textMuted}
             style={{ ...inputStyle, fontSize: 13, paddingVertical: 10 }}
           />

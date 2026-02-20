@@ -32,6 +32,7 @@ export default defineSchema({
     title: v.string(),
     description: v.optional(v.string()),
     category: v.string(),
+    categories: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
     variables: v.object({
       weight: v.optional(v.number()),
@@ -88,6 +89,7 @@ export default defineSchema({
       title: v.string(),
       description: v.optional(v.string()),
       category: v.string(),
+      categories: v.optional(v.array(v.string())),
       tags: v.array(v.string()),
       trainingType: v.optional(
         v.union(
@@ -147,6 +149,7 @@ export default defineSchema({
       title: v.string(),
       description: v.optional(v.string()),
       category: v.string(),
+      categories: v.optional(v.array(v.string())),
       tags: v.array(v.string()),
       trainingType: v.optional(
         v.union(
