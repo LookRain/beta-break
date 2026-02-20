@@ -23,8 +23,13 @@ import {
   ActionsheetDragIndicatorWrapper,
 } from "@/components/ui/actionsheet";
 import { Plus, CheckCircle2, Trash2, ChevronRight, Clock } from "lucide-react-native";
-import { SessionCard } from "@/components/session-card";
+import { SessionCard, type SessionSnapshot } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
+import {
+  ExerciseDetailsSheet,
+  type ExerciseDetailItem,
+  type ExerciseDetailVariables,
+} from "@/components/exercise-details-sheet";
 import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, calendarTheme, screenPadding } from "@/lib/theme";
 import {
@@ -250,6 +255,10 @@ export default function CalendarScreen() {
   const [overrideSessionId, setOverrideSessionId] = React.useState<string | null>(null);
   const [overrideError, setOverrideError] = React.useState<string | null>(null);
   const [isSavingOverride, setIsSavingOverride] = React.useState(false);
+  const [selectedExercise, setSelectedExercise] = React.useState<{
+    exercise: ExerciseDetailItem;
+    finalVariables: ExerciseDetailVariables;
+  } | null>(null);
 
   const libraryItems = React.useMemo(() => {
     const byId = new Map<string, { _id: string; title: string }>();
@@ -461,6 +470,26 @@ export default function CalendarScreen() {
     [completeSession, resolveConcreteSessionId, showErrorToast, showSuccessToast],
   );
 
+  const openSessionDetails = React.useCallback(
+    (snapshot: SessionSnapshot, finalVariables: ExerciseDetailVariables) => {
+      setSelectedExercise({
+        exercise: {
+          title: snapshot.title,
+          description: snapshot.description,
+          categories: snapshot.categories,
+          tags: snapshot.tags,
+          trainingType: snapshot.trainingType,
+          hangDetails: snapshot.hangDetails,
+          difficulty: snapshot.difficulty,
+          equipment: snapshot.equipment,
+          variables: snapshot.variables,
+        },
+        finalVariables,
+      });
+    },
+    [],
+  );
+
   const handleDelaySessionByWeek = React.useCallback(
     async (session: any) => {
       try {
@@ -663,6 +692,12 @@ export default function CalendarScreen() {
                   onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
                   onStart={() => void handleStartSession(session)}
                   onDone={() => void handleCompleteSession(session)}
+                  onViewDetails={() =>
+                    openSessionDetails(
+                      session.snapshot,
+                      mergeVariables(session.snapshot.variables, session.overrides),
+                    )
+                  }
                   startLabel="Timer"
                   startIconSize={14}
                   startButtonTextClassName="font-semibold text-sm"
@@ -1558,6 +1593,14 @@ export default function CalendarScreen() {
           </KeyboardAvoidingView>
         </ActionsheetContent>
       </Actionsheet>
+
+      <ExerciseDetailsSheet
+        isOpen={!!selectedExercise}
+        onClose={() => setSelectedExercise(null)}
+        exercise={selectedExercise?.exercise ?? null}
+        finalVariables={selectedExercise?.finalVariables}
+        bodyWeightKg={profile?.bodyWeightKg ?? undefined}
+      />
     </>
   );
 }

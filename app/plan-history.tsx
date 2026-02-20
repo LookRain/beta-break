@@ -6,6 +6,11 @@ import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { CheckCircle2, Clock } from "lucide-react-native";
 import { SessionCard } from "@/components/session-card";
+import {
+  ExerciseDetailsSheet,
+  type ExerciseDetailItem,
+  type ExerciseDetailVariables,
+} from "@/components/exercise-details-sheet";
 import { colors, cardShadow, screenPadding } from "@/lib/theme";
 
 function startOfDay(timestamp: number): number {
@@ -54,6 +59,11 @@ export default function PlanHistoryScreen() {
     rangeStart: oneYearAgo,
     rangeEnd: today,
   });
+  const profile = useQuery(api.profiles.getMyProfile);
+  const [selectedExercise, setSelectedExercise] = React.useState<{
+    exercise: ExerciseDetailItem;
+    finalVariables: ExerciseDetailVariables;
+  } | null>(null);
 
   const pastSessions = React.useMemo(
     () =>
@@ -76,78 +86,104 @@ export default function PlanHistoryScreen() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ ...screenPadding, gap: 16 }}
-      style={{ backgroundColor: colors.bg }}
-    >
-      <Box className="gap-1">
-        <Text className="text-2xl font-bold text-typography-900">Past Sessions</Text>
-        <Text className="text-sm text-typography-500">
-          Your training history from the last year
-        </Text>
-      </Box>
-
-      {pastSessions.length === 0 ? (
-        <Box
-          className="rounded-2xl p-6 items-center"
-          style={{ ...cardShadow, backgroundColor: colors.bgCard }}
-        >
-          <Text className="text-typography-500">No past sessions yet.</Text>
+    <>
+      <ScrollView
+        contentContainerStyle={{ ...screenPadding, gap: 16 }}
+        style={{ backgroundColor: colors.bg }}
+      >
+        <Box className="gap-1">
+          <Text className="text-2xl font-bold text-typography-900">Past Sessions</Text>
+          <Text className="text-sm text-typography-500">
+            Your training history from the last year
+          </Text>
         </Box>
-      ) : null}
 
-      {pastSessions.map((session) => {
-        const final = mergeVariables(session.snapshot.variables, session.overrides);
-        const isCompleted = !!session.completedAt;
-        const isImpromptu = !!session.isImpromptu;
-        return (
-          <SessionCard
-            key={session._id}
-            snapshot={session.snapshot}
-            finalVariables={final}
-            statusBadge={
-              <Box className="flex-row items-center gap-1.5">
-                {isImpromptu ? (
-                  <Box
-                    className="rounded-full px-2.5 py-1"
-                    style={{ backgroundColor: colors.accentBg }}
-                  >
-                    <Text className="text-xs font-semibold" style={{ color: colors.accent }}>
-                      Impromptu
-                    </Text>
-                  </Box>
-                ) : null}
-                {isCompleted ? (
-                  <Box className="flex-row items-center gap-1">
-                    <CheckCircle2 size={14} color={colors.success} strokeWidth={2.5} />
-                    <Text className="text-xs font-semibold" style={{ color: colors.success }}>
-                      Completed
-                    </Text>
-                  </Box>
-                ) : (
-                  <Box className="flex-row items-center gap-1">
-                    <Clock size={14} color={colors.textMuted} strokeWidth={2} />
-                    <Text className="text-xs text-typography-400">Missed</Text>
-                  </Box>
-                )}
-              </Box>
-            }
+        {pastSessions.length === 0 ? (
+          <Box
+            className="rounded-2xl p-6 items-center"
+            style={{ ...cardShadow, backgroundColor: colors.bgCard }}
           >
-            {isImpromptu ? (
-              <Text className="text-sm text-typography-500">
-                {session.completedAt
-                  ? `Completed ${toDayString(session.completedAt)}`
-                  : "Impromptu session"}
-              </Text>
-            ) : (
-              <Text className="text-sm text-typography-500">
-                {toDayString(session.scheduledFor)}
-                {session.completedAt ? ` · Completed ${toDayString(session.completedAt)}` : ""}
-              </Text>
-            )}
-          </SessionCard>
-        );
-      })}
-    </ScrollView>
+            <Text className="text-typography-500">No past sessions yet.</Text>
+          </Box>
+        ) : null}
+
+        {pastSessions.map((session) => {
+          const final = mergeVariables(session.snapshot.variables, session.overrides);
+          const isCompleted = !!session.completedAt;
+          const isImpromptu = !!session.isImpromptu;
+          return (
+            <SessionCard
+              key={session._id}
+              snapshot={session.snapshot}
+              finalVariables={final}
+              onPressViewDetails={() =>
+                setSelectedExercise({
+                  exercise: {
+                    title: session.snapshot.title,
+                    description: session.snapshot.description,
+                    categories: session.snapshot.categories,
+                    tags: session.snapshot.tags,
+                    trainingType: session.snapshot.trainingType,
+                    hangDetails: session.snapshot.hangDetails,
+                    difficulty: session.snapshot.difficulty,
+                    equipment: session.snapshot.equipment,
+                    variables: session.snapshot.variables,
+                  },
+                  finalVariables: final,
+                })
+              }
+              statusBadge={
+                <Box className="flex-row items-center gap-1.5">
+                  {isImpromptu ? (
+                    <Box
+                      className="rounded-full px-2.5 py-1"
+                      style={{ backgroundColor: colors.accentBg }}
+                    >
+                      <Text className="text-xs font-semibold" style={{ color: colors.accent }}>
+                        Impromptu
+                      </Text>
+                    </Box>
+                  ) : null}
+                  {isCompleted ? (
+                    <Box className="flex-row items-center gap-1">
+                      <CheckCircle2 size={14} color={colors.success} strokeWidth={2.5} />
+                      <Text className="text-xs font-semibold" style={{ color: colors.success }}>
+                        Completed
+                      </Text>
+                    </Box>
+                  ) : (
+                    <Box className="flex-row items-center gap-1">
+                      <Clock size={14} color={colors.textMuted} strokeWidth={2} />
+                      <Text className="text-xs text-typography-400">Missed</Text>
+                    </Box>
+                  )}
+                </Box>
+              }
+            >
+              {isImpromptu ? (
+                <Text className="text-sm text-typography-500">
+                  {session.completedAt
+                    ? `Completed ${toDayString(session.completedAt)}`
+                    : "Impromptu session"}
+                </Text>
+              ) : (
+                <Text className="text-sm text-typography-500">
+                  {toDayString(session.scheduledFor)}
+                  {session.completedAt ? ` · Completed ${toDayString(session.completedAt)}` : ""}
+                </Text>
+              )}
+            </SessionCard>
+          );
+        })}
+      </ScrollView>
+
+      <ExerciseDetailsSheet
+        isOpen={!!selectedExercise}
+        onClose={() => setSelectedExercise(null)}
+        exercise={selectedExercise?.exercise ?? null}
+        finalVariables={selectedExercise?.finalVariables}
+        bodyWeightKg={profile?.bodyWeightKg ?? undefined}
+      />
+    </>
   );
 }

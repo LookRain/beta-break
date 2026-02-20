@@ -4,6 +4,7 @@ import { useQuery } from "convex/react";
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from "react-native-svg";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
+import { Button, ButtonText } from "@/components/ui/button";
 import { Repeat, Layers, Timer, Weight } from "lucide-react-native";
 import { api } from "@/convex/_generated/api";
 import { colors, cardShadow } from "@/lib/theme";
@@ -46,6 +47,7 @@ type SessionCardProps = {
   finalVariables: SessionVariables;
   statusBadge?: React.ReactNode;
   children?: React.ReactNode;
+  onPressViewDetails?: () => void;
 };
 
 const typeAccentColors: Record<string, string> = {
@@ -83,7 +85,13 @@ function resolveImage(snapshot: SessionSnapshot): ImageSourcePropType | null {
   return null;
 }
 
-export function SessionCard({ snapshot, finalVariables, statusBadge, children }: SessionCardProps) {
+export function SessionCard({
+  snapshot,
+  finalVariables,
+  statusBadge,
+  children,
+  onPressViewDetails,
+}: SessionCardProps) {
   const profile = useQuery(api.profiles.getMyProfile);
   const accentColor = typeAccentColors[snapshot.trainingType ?? ""] ?? colors.primary;
   const bgImage = resolveImage(snapshot);
@@ -185,6 +193,14 @@ export function SessionCard({ snapshot, finalVariables, statusBadge, children }:
               </View>
             ) : null}
           </View>
+        ) : null}
+
+        {onPressViewDetails ? (
+          <Box className="flex-row">
+            <Button size="sm" variant="outline" className="rounded-xl" onPress={onPressViewDetails}>
+              <ButtonText className="text-xs font-semibold">View details</ButtonText>
+            </Button>
+          </Box>
         ) : null}
 
         {children}
