@@ -62,11 +62,29 @@ type Props = {
   onSignOut?: () => Promise<void> | void;
 };
 
+const CLIMBING_DISCIPLINE_OPTIONS = [
+  { value: "bouldering", label: "Bouldering" },
+  { value: "sport", label: "Sport" },
+  { value: "trad", label: "Trad" },
+] as const;
+
 function parseOptionalNumber(value: string): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function toggleArrayValue(values: string[], value: string): string[] {
+  return values.includes(value) ? values.filter((entry) => entry !== value) : [...values, value];
+}
+
+function toDisciplineLabel(value: string): string {
+  return value
+    .split(/[\s_-]+/)
+    .filter((entry) => entry.length > 0)
+    .map((entry) => entry.charAt(0).toUpperCase() + entry.slice(1))
+    .join(" ");
 }
 
 export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
@@ -76,8 +94,14 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
   const [bodyWeightKg, setBodyWeightKg] = React.useState(
     initialValues?.bodyWeightKg?.toString() ?? "",
   );
-  const [stylesInput, setStylesInput] = React.useState(
-    toCommaSeparated(initialValues?.styles ?? []),
+  const [preferredDisciplines, setPreferredDisciplines] = React.useState<string[]>(() =>
+    Array.from(
+      new Set(
+        (initialValues?.styles ?? [])
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0),
+      ),
+    ),
   );
   const [climbingAgeMonths, setClimbingAgeMonths] = React.useState(
     initialValues?.climbingAgeMonths?.toString() ?? "",
@@ -103,6 +127,13 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
   const [error, setError] = React.useState<string | null>(null);
   const stickyFooterBottomPadding = insets.bottom + (Platform.OS === "ios" ? 56 : 64);
   const scrollBottomPadding = Math.max(screenPadding.paddingBottom, insets.bottom + 120);
+  const disciplineOptions = React.useMemo(() => {
+    const presetValues = new Set(CLIMBING_DISCIPLINE_OPTIONS.map((option) => option.value));
+    const customOptions = preferredDisciplines
+      .filter((value) => !presetValues.has(value))
+      .map((value) => ({ value, label: toDisciplineLabel(value) }));
+    return [...CLIMBING_DISCIPLINE_OPTIONS, ...customOptions];
+  }, [preferredDisciplines]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -111,7 +142,11 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
       await onSubmit({
         username: username.trim() || undefined,
         bodyWeightKg: parseOptionalNumber(bodyWeightKg),
-        styles: parseCommaSeparated(stylesInput),
+        styles: Array.from(
+          new Set(
+            preferredDisciplines.map((entry) => entry.trim()).filter((entry) => entry.length > 0),
+          ),
+        ),
         climbingAgeMonths: parseOptionalNumber(climbingAgeMonths),
         boulderingGrade: boulderingGrade.trim() || undefined,
         sportGrade: sportGrade.trim() || undefined,
@@ -191,14 +226,37 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
               keyboardType="numeric"
               style={inputStyle}
             />
-            <Text className={fieldLabelClassName}>Styles</Text>
-            <TextInput
-              placeholder="Styles (bouldering, sport, trad)"
-              placeholderTextColor={colors.textMuted}
-              value={stylesInput}
-              onChangeText={setStylesInput}
-              style={inputStyle}
-            />
+            <Text className={fieldLabelClassName}>Preferred discipline</Text>
+            <Box className="flex-row flex-wrap gap-2">
+              {disciplineOptions.map((discipline) => {
+                const isActive = preferredDisciplines.includes(discipline.value);
+                return (
+                  <Pressable
+                    key={discipline.value}
+                    onPress={() =>
+                      setPreferredDisciplines((prev) => toggleArrayValue(prev, discipline.value))
+                    }
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 999,
+                      backgroundColor: isActive ? colors.primary : colors.borderLight,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: isActive ? "#fff" : colors.text,
+                        fontSize: 12,
+                        fontWeight: "600",
+                      }}
+                    >
+                      {discipline.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </Box>
+            <Text className="text-xs text-typography-500">Select all that apply.</Text>
             <Text className={fieldLabelClassName}>Climbing experience (months)</Text>
             <TextInput
               placeholder="Climbing experience (months)"
