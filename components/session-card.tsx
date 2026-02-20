@@ -1,7 +1,6 @@
 import React from "react";
 import { Image, ImageSourcePropType, StyleSheet, View } from "react-native";
 import { useQuery } from "convex/react";
-import Svg, { Defs, LinearGradient as SvgLinearGradient, Rect, Stop } from "react-native-svg";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Repeat, Layers, Timer, Weight } from "lucide-react-native";
@@ -86,7 +85,7 @@ function resolveImage(snapshot: SessionSnapshot): ImageSourcePropType | null {
 export function SessionCard({ snapshot, finalVariables, statusBadge, children }: SessionCardProps) {
   const profile = useQuery(api.profiles.getMyProfile);
   const accentColor = typeAccentColors[snapshot.trainingType ?? ""] ?? colors.primary;
-  const bgImage = resolveImage(snapshot);
+  const titleIcon = resolveImage(snapshot);
   const isBodyweightPercent = !!snapshot.trainingType;
   const bodyWeightKg = profile?.bodyWeightKg;
 
@@ -112,35 +111,14 @@ export function SessionCard({ snapshot, finalVariables, statusBadge, children }:
     <View style={[styles.card, cardShadow]}>
       <View style={[styles.accentStrip, { backgroundColor: accentColor }]} />
 
-      {bgImage ? (
-        <View style={styles.imageContainer}>
-          <Image source={bgImage} style={styles.bgImage} resizeMode="cover" />
-          <Svg
-            style={styles.imageFeatherGradient}
-            width="100%"
-            height="100%"
-            preserveAspectRatio="none"
-            pointerEvents="none"
-          >
-            <Defs>
-              <SvgLinearGradient id="sessionCardLeftFeather" x1="0%" y1="0%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor={colors.bgCard} stopOpacity={1} />
-                <Stop offset="22%" stopColor={colors.bgCard} stopOpacity={0.88} />
-                <Stop offset="55%" stopColor={colors.bgCard} stopOpacity={0.45} />
-                <Stop offset="100%" stopColor={colors.bgCard} stopOpacity={0.12} />
-              </SvgLinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="68%" height="100%" fill="url(#sessionCardLeftFeather)" />
-          </Svg>
-          <View style={styles.imageFadeTop} />
-        </View>
-      ) : null}
-
       <View style={styles.content}>
         <Box className="flex-row items-center justify-between gap-2">
-          <Text className="font-bold text-typography-900 text-base flex-1 flex-shrink">
-            {snapshot.title}
-          </Text>
+          <View style={styles.titleGroup}>
+            {titleIcon ? <Image source={titleIcon} style={styles.titleIcon} resizeMode="cover" /> : null}
+            <Text className="font-bold text-typography-900 text-base flex-1 flex-shrink">
+              {snapshot.title}
+            </Text>
+          </View>
           {statusBadge}
         </Box>
 
@@ -204,37 +182,22 @@ const styles = StyleSheet.create({
   accentStrip: {
     width: 4,
   },
-  imageContainer: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: "66%",
-    overflow: "hidden",
-  },
-  bgImage: {
-    width: "132%",
-    height: "100%",
-    opacity: 0.41,
-    transform: [{ translateX: 18 }],
-  },
-  imageFeatherGradient: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  imageFadeTop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: "30%",
-    backgroundColor: colors.bgCard,
-    opacity: 0.35,
-  },
   content: {
     flex: 1,
     padding: 16,
     gap: 12,
-    zIndex: 1,
+  },
+  titleGroup: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+  titleIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
   },
   statsRow: {
     flexDirection: "row",

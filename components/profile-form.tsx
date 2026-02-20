@@ -21,6 +21,7 @@ import {
   SelectInput,
   SelectItem,
   SelectPortal,
+  SelectScrollView,
   SelectTrigger,
 } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
@@ -40,6 +41,71 @@ const sectionCardStyle = {
   gap: 12,
 } as const;
 const fieldLabelClassName = "text-xs text-typography-500 mb-1";
+const gradeSelectSheetClassName = "max-h-[55%]";
+const gradeSelectItemClassName = "py-2";
+const BOULDER_FONT_GRADES: Record<string, string> = {
+  VB: "3",
+  V0: "4",
+  V1: "5",
+  V2: "5+",
+  V3: "6A",
+  V4: "6B",
+  V5: "6C",
+  V6: "6C+",
+  V7: "7A",
+  V8: "7B",
+  V9: "7C",
+  V10: "7C+",
+  V11: "8A",
+  V12: "8A+",
+  V13: "8B",
+  V14: "8B+",
+  V15: "8C",
+  V16: "8C+",
+  V17: "9A",
+};
+const YDS_TO_FRENCH_GRADES: Record<string, string> = {
+  "5.6": "4C",
+  "5.7": "5A",
+  "5.8": "5B",
+  "5.9": "5C",
+  "5.10a": "6A",
+  "5.10b": "6A+",
+  "5.10c": "6B",
+  "5.10d": "6B+",
+  "5.11a": "6C",
+  "5.11b": "6C+",
+  "5.11c": "7A",
+  "5.11d": "7A+",
+  "5.12a": "7B+",
+  "5.12b": "7C",
+  "5.12c": "7C+",
+  "5.12d": "8A",
+  "5.13a": "8A+",
+  "5.13b": "8B",
+  "5.13c": "8B+",
+  "5.13d": "8C",
+  "5.14a": "8C+",
+  "5.14b": "9A",
+  "5.14c": "9A+",
+  "5.14d": "9B",
+  "5.15a": "9B+",
+  "5.15b": "9C",
+  "5.15c": "9C+",
+  "5.15d": "9C+/10A",
+};
+
+function formatBoulderingGradeLabel(grade: string): string {
+  if (!grade) return "";
+  const fontGrade = BOULDER_FONT_GRADES[grade];
+  return fontGrade ? `${grade} (${fontGrade})` : grade;
+}
+
+function formatSportGradeLabel(grade: string): string {
+  if (!grade) return "";
+  const frenchGrade = YDS_TO_FRENCH_GRADES[grade];
+  return frenchGrade ? `${frenchGrade} (${grade})` : grade;
+}
 
 type ProfileValues = {
   username?: string;
@@ -297,22 +363,33 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
                   >
                     <SelectInput
                       placeholder="Select"
-                      value={boulderingGrade}
+                      value={formatBoulderingGradeLabel(boulderingGrade)}
                       className="flex-1 text-left"
                       style={{ textAlign: "left", color: colors.text }}
                     />
-                    <SelectIcon as={ChevronDown} className="mr-0" />
+                    <SelectIcon as={ChevronDown} className="mr-2" />
                   </SelectTrigger>
                   <SelectPortal>
                     <SelectBackdrop />
-                    <SelectContent>
+                    <SelectContent className={gradeSelectSheetClassName}>
                       <SelectDragIndicatorWrapper>
                         <SelectDragIndicator />
                       </SelectDragIndicatorWrapper>
-                      <SelectItem label="Not set" value="" />
-                      {BOULDER_GRADES.map((grade) => (
-                        <SelectItem key={grade} label={grade} value={grade} />
-                      ))}
+                      <SelectScrollView className="w-full">
+                        <SelectItem
+                          className={gradeSelectItemClassName}
+                          label="Not set"
+                          value=""
+                        />
+                        {BOULDER_GRADES.map((grade) => (
+                          <SelectItem
+                            className={gradeSelectItemClassName}
+                            key={grade}
+                            label={formatBoulderingGradeLabel(grade)}
+                            value={grade}
+                          />
+                        ))}
+                      </SelectScrollView>
                     </SelectContent>
                   </SelectPortal>
                 </Select>
@@ -335,22 +412,33 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
                   >
                     <SelectInput
                       placeholder="Select"
-                      value={sportGrade}
+                      value={formatSportGradeLabel(sportGrade)}
                       className="flex-1 text-left"
                       style={{ textAlign: "left", color: colors.text }}
                     />
-                    <SelectIcon as={ChevronDown} className="mr-0" />
+                    <SelectIcon as={ChevronDown} className="mr-2" />
                   </SelectTrigger>
                   <SelectPortal>
                     <SelectBackdrop />
-                    <SelectContent>
+                    <SelectContent className={gradeSelectSheetClassName}>
                       <SelectDragIndicatorWrapper>
                         <SelectDragIndicator />
                       </SelectDragIndicatorWrapper>
-                      <SelectItem label="Not set" value="" />
-                      {ROPE_GRADES.map((grade) => (
-                        <SelectItem key={grade} label={grade} value={grade} />
-                      ))}
+                      <SelectScrollView className="w-full">
+                        <SelectItem
+                          className={gradeSelectItemClassName}
+                          label="Not set"
+                          value=""
+                        />
+                        {ROPE_GRADES.map((grade) => (
+                          <SelectItem
+                            className={gradeSelectItemClassName}
+                            key={grade}
+                            label={formatSportGradeLabel(grade)}
+                            value={grade}
+                          />
+                        ))}
+                      </SelectScrollView>
                     </SelectContent>
                   </SelectPortal>
                 </Select>
@@ -377,18 +465,29 @@ export function ProfileForm({ initialValues, onSubmit, onSignOut }: Props) {
                       className="flex-1 text-left"
                       style={{ textAlign: "left", color: colors.text }}
                     />
-                    <SelectIcon as={ChevronDown} className="mr-0" />
+                    <SelectIcon as={ChevronDown} className="mr-2" />
                   </SelectTrigger>
                   <SelectPortal>
                     <SelectBackdrop />
-                    <SelectContent>
+                    <SelectContent className={gradeSelectSheetClassName}>
                       <SelectDragIndicatorWrapper>
                         <SelectDragIndicator />
                       </SelectDragIndicatorWrapper>
-                      <SelectItem label="Not set" value="" />
-                      {ROPE_GRADES.map((grade) => (
-                        <SelectItem key={grade} label={grade} value={grade} />
-                      ))}
+                      <SelectScrollView className="w-full">
+                        <SelectItem
+                          className={gradeSelectItemClassName}
+                          label="Not set"
+                          value=""
+                        />
+                        {ROPE_GRADES.map((grade) => (
+                          <SelectItem
+                            className={gradeSelectItemClassName}
+                            key={grade}
+                            label={grade}
+                            value={grade}
+                          />
+                        ))}
+                      </SelectScrollView>
                     </SelectContent>
                   </SelectPortal>
                 </Select>
