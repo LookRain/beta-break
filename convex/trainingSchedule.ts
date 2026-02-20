@@ -18,6 +18,11 @@ const recurrenceValidator = v.object({
   until: v.optional(v.number()),
 });
 
+// Open-ended recurring rules use a rolling window so they do not materialize
+// unbounded future sessions.
+const NO_END_COVERAGE_LOOKBACK_DAYS = 45;
+const NO_END_COVERAGE_HORIZON_DAYS = 60;
+
 function startOfDay(timestamp: number): number {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
@@ -41,6 +46,50 @@ function endOfMonth(timestamp: number): number {
   date.setDate(0);
   date.setHours(23, 59, 59, 999);
   return date.getTime();
+}
+
+function getNoEndCoverageWindow(referenceTimestamp: number) {
+  const today = startOfDay(referenceTimestamp);
+  return {
+    windowStart: addDays(today, -NO_END_COVERAGE_LOOKBACK_DAYS),
+    windowEnd: addDays(today, NO_END_COVERAGE_HORIZON_DAYS),
+  };
+}
+
+function getRuleCoverageWindow(
+  rule: {
+    startDate: number;
+    recurrence: {
+      until?: number;
+    };
+  },
+  requestedStart: number,
+  requestedEnd: number,
+  referenceTimestamp: number,
+): { effectiveStart: number; effectiveEnd: number } | null {
+  const rangeStart = startOfDay(requestedStart);
+  const rangeEnd = startOfDay(requestedEnd);
+  if (rangeEnd < rangeStart) {
+    return null;
+  }
+
+  const ruleStart = startOfDay(rule.startDate);
+  const ruleUntil = rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
+
+  let effectiveStart = Math.max(ruleStart, rangeStart);
+  let effectiveEnd = ruleUntil !== undefined ? Math.min(ruleUntil, rangeEnd) : rangeEnd;
+
+  if (ruleUntil === undefined) {
+    const { windowStart, windowEnd } = getNoEndCoverageWindow(referenceTimestamp);
+    effectiveStart = Math.max(effectiveStart, windowStart);
+    effectiveEnd = Math.min(effectiveEnd, windowEnd);
+  }
+
+  if (effectiveEnd < effectiveStart) {
+    return null;
+  }
+
+  return { effectiveStart, effectiveEnd };
 }
 
 function occursOnDate(
@@ -120,11 +169,16 @@ async function createSessionFromRule(ctx: any, rule: any, scheduledFor: number) 
   });
 }
 
-async function ensureCoverageForRule(ctx: any, rule: any, rangeStart: number, rangeEnd: number) {
+async function ensureCoverageForRule(
+  ctx: any,
+  rule: any,
+  rangeStart: number,
+  rangeEnd: number,
+): Promise<number> {
   const start = startOfDay(rangeStart);
   const end = startOfDay(rangeEnd);
   if (end < start) {
-    return;
+    return 0;
   }
 
   const existing = await ctx.db
@@ -134,6 +188,7 @@ async function ensureCoverageForRule(ctx: any, rule: any, rangeStart: number, ra
     )
     .collect();
   const existingDates = new Set(existing.map((session: any) => session.scheduledFor));
+  let generated = 0;
 
   for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
     if (!occursOnDate(rule, cursor)) {
@@ -143,7 +198,10 @@ async function ensureCoverageForRule(ctx: any, rule: any, rangeStart: number, ra
       continue;
     }
     await createSessionFromRule(ctx, rule, cursor);
+    generated += 1;
   }
+
+  return generated;
 }
 
 async function assertItemCanBeScheduled(ctx: any, userId: any, itemId: any) {
@@ -320,8 +378,17 @@ export const addRecurringSeries = mutationGeneric({
 
     const rule = await ctx.db.get(ruleId);
     if (rule) {
-      const horizonEnd = until ?? addDays(startDate, 180);
-      await ensureCoverageForRule(ctx, rule, startDate, horizonEnd);
+      const noEndReferenceTimestamp = until === undefined ? Math.max(now, startDate) : now;
+      const requestedEnd = until ?? getNoEndCoverageWindow(noEndReferenceTimestamp).windowEnd;
+      const coverage = getRuleCoverageWindow(
+        rule,
+        startDate,
+        requestedEnd,
+        noEndReferenceTimestamp,
+      );
+      if (coverage) {
+        await ensureCoverageForRule(ctx, rule, coverage.effectiveStart, coverage.effectiveEnd);
+      }
     }
 
     return await ctx.db.get(ruleId);
@@ -339,6 +406,7 @@ export const ensureRecurringCoverage = mutationGeneric({
       throw new Error("Unauthorized");
     }
 
+    const now = Date.now();
     const rangeStart = startOfDay(args.rangeStart);
     const rangeEnd = startOfDay(args.rangeEnd);
     if (rangeEnd < rangeStart) {
@@ -348,28 +416,25 @@ export const ensureRecurringCoverage = mutationGeneric({
     const rules = await ctx.db
       .query("trainingScheduleRecurrenceRules")
       .withIndex("by_owner_active_start_date", (q: any) =>
-        q.eq("ownerId", userId).eq("active", true),
+        q.eq("ownerId", userId).eq("active", true).lte("startDate", rangeEnd),
       )
       .collect();
 
+    let generated = 0;
     for (const rule of rules) {
-      const ruleUntil =
-        rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
-      if (rule.startDate > rangeEnd) {
+      const coverage = getRuleCoverageWindow(rule, rangeStart, rangeEnd, now);
+      if (!coverage) {
         continue;
       }
-      if (ruleUntil !== undefined && ruleUntil < rangeStart) {
-        continue;
-      }
-      const effectiveStart = Math.max(rule.startDate, rangeStart);
-      const effectiveEnd = ruleUntil !== undefined ? Math.min(ruleUntil, rangeEnd) : rangeEnd;
-      if (effectiveEnd < effectiveStart) {
-        continue;
-      }
-      await ensureCoverageForRule(ctx, rule, effectiveStart, effectiveEnd);
+      generated += await ensureCoverageForRule(
+        ctx,
+        rule,
+        coverage.effectiveStart,
+        coverage.effectiveEnd,
+      );
     }
 
-    return { generated: 1 };
+    return { generated };
   },
 });
 

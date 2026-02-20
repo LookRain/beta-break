@@ -950,6 +950,11 @@ export default function CalendarScreen() {
                         </Pressable>
                       ))}
                     </Box>
+                    {endMode === "none" ? (
+                      <Text className="text-xs text-typography-500">
+                        No-end series are generated in a rolling window to keep scheduling scalable.
+                      </Text>
+                    ) : null}
                   </Box>
                 ) : null}
 
