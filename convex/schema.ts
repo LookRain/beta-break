@@ -31,8 +31,7 @@ export default defineSchema({
     ownerId: v.id("users"),
     title: v.string(),
     description: v.optional(v.string()),
-    category: v.string(),
-    categories: v.optional(v.array(v.string())),
+    categories: v.array(v.string()),
     tags: v.array(v.string()),
     variables: v.object({
       weight: v.optional(v.number()),
@@ -69,7 +68,6 @@ export default defineSchema({
   })
     .index("by_owner_updated_at", ["ownerId", "updatedAt"])
     .index("by_status_published_at", ["status", "publishedAt"])
-    .index("by_category", ["category"])
     .index("by_difficulty", ["difficulty"]),
   savedItems: defineTable({
     userId: v.id("users"),
@@ -88,8 +86,7 @@ export default defineSchema({
     snapshot: v.object({
       title: v.string(),
       description: v.optional(v.string()),
-      category: v.string(),
-      categories: v.optional(v.array(v.string())),
+      categories: v.array(v.string()),
       tags: v.array(v.string()),
       trainingType: v.optional(
         v.union(
@@ -148,8 +145,7 @@ export default defineSchema({
     snapshot: v.object({
       title: v.string(),
       description: v.optional(v.string()),
-      category: v.string(),
-      categories: v.optional(v.array(v.string())),
+      categories: v.array(v.string()),
       tags: v.array(v.string()),
       trainingType: v.optional(
         v.union(

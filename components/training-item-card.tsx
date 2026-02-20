@@ -11,8 +11,7 @@ type TrainingItemCardItem = {
   _id: string;
   title: string;
   description?: string;
-  category: string;
-  categories?: string[];
+  categories: string[];
   tags: string[];
   trainingType?: "hang" | "weight_training" | "climbing" | "others";
   hangDetails?: {
@@ -100,9 +99,7 @@ export function TrainingItemCard({
         ? `${weightPercent}% BW${personalizedWeightKg !== undefined ? ` (${personalizedWeightKg}kg for you)` : ""}`
         : null;
   const legacyLoadLabel = weightPercent !== undefined ? `${weightPercent}kg` : null;
-  const itemCategories = (
-    item.categories?.length ? item.categories : item.category ? [item.category] : []
-  ).slice(0, 3);
+  const itemCategories = item.categories.slice(0, 3);
 
   return (
     <Box

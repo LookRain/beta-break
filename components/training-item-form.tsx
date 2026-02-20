@@ -39,8 +39,7 @@ import { showErrorMessage, useAppToast } from "@/lib/useAppToast";
 type TrainingItemFormValues = {
   title: string;
   description?: string;
-  category?: string;
-  categories?: string[];
+  categories: string[];
   tags: string[];
   variables: {
     weight?: number;
@@ -145,15 +144,12 @@ export function TrainingItemForm({
     () =>
       Array.from(
         new Set(
-          [
-            ...(initialValues?.categories ?? []),
-            ...(initialValues?.category ? [initialValues.category] : []),
-          ]
+          (initialValues?.categories ?? [])
             .map((entry) => entry.trim())
             .filter((entry) => entry.length > 0),
         ),
       ),
-    [initialValues?.categories, initialValues?.category],
+    [initialValues?.categories],
   );
   const initialPresetCategories = React.useMemo(
     () =>
@@ -287,7 +283,6 @@ export function TrainingItemForm({
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        category: finalCategories[0],
         categories: finalCategories,
         tags: parseCommaSeparated(tagsInput),
         trainingType,

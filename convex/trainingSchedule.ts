@@ -168,6 +168,16 @@ async function assertItemCanBeScheduled(ctx: any, userId: any, itemId: any) {
   return item;
 }
 
+function normalizeItemCategories(categories: string[] | undefined): string[] {
+  const normalized = Array.from(
+    new Set((categories ?? []).map((entry) => entry.trim()).filter((entry) => entry.length > 0)),
+  );
+  if (normalized.length === 0) {
+    throw new Error("Training item must have at least one category.");
+  }
+  return normalized;
+}
+
 export const addSession = mutationGeneric({
   args: {
     trainingItemId: v.id("trainingItems"),
@@ -182,6 +192,7 @@ export const addSession = mutationGeneric({
     }
 
     const item = await assertItemCanBeScheduled(ctx, userId, args.trainingItemId);
+    const snapshotCategories = normalizeItemCategories(item.categories);
     const now = Date.now();
     const sessionId = await ctx.db.insert("trainingScheduleSessions", {
       ownerId: userId,
@@ -193,11 +204,7 @@ export const addSession = mutationGeneric({
       snapshot: {
         title: item.title,
         description: item.description,
-        category: item.category,
-        categories:
-          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
-            ? item.categories
-            : [item.category],
+        categories: snapshotCategories,
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,
@@ -228,6 +235,7 @@ export const startImpromptuSession = mutationGeneric({
     }
 
     const item = await assertItemCanBeScheduled(ctx, userId, args.trainingItemId);
+    const snapshotCategories = normalizeItemCategories(item.categories);
     const now = Date.now();
     const sessionId = await ctx.db.insert("trainingScheduleSessions", {
       ownerId: userId,
@@ -239,11 +247,7 @@ export const startImpromptuSession = mutationGeneric({
       snapshot: {
         title: item.title,
         description: item.description,
-        category: item.category,
-        categories:
-          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
-            ? item.categories
-            : [item.category],
+        categories: snapshotCategories,
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,
@@ -280,6 +284,7 @@ export const addRecurringSeries = mutationGeneric({
     }
 
     const item = await assertItemCanBeScheduled(ctx, userId, args.trainingItemId);
+    const snapshotCategories = normalizeItemCategories(item.categories);
     const now = Date.now();
     const startDate = startOfDay(args.startDate);
     const until =
@@ -298,11 +303,7 @@ export const addRecurringSeries = mutationGeneric({
       snapshot: {
         title: item.title,
         description: item.description,
-        category: item.category,
-        categories:
-          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
-            ? item.categories
-            : [item.category],
+        categories: snapshotCategories,
         tags: item.tags,
         trainingType: item.trainingType,
         hangDetails: item.hangDetails,
