@@ -83,6 +83,7 @@ export default defineSchema({
     recurrenceRuleId: v.optional(v.id("trainingScheduleRecurrenceRules")),
     scheduledFor: v.number(),
     completedAt: v.optional(v.number()),
+    canceledAt: v.optional(v.number()),
     snapshot: v.object({
       title: v.string(),
       description: v.optional(v.string()),

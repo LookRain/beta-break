@@ -54,6 +54,9 @@ export const startSessionExecution = mutationGeneric({
     if (session.ownerId !== userId) {
       throw new Error("Forbidden");
     }
+    if (session.canceledAt) {
+      throw new Error("Session was removed.");
+    }
     if (session.completedAt) {
       throw new Error("Completed sessions are immutable.");
     }
