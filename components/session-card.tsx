@@ -1,7 +1,6 @@
 import React from "react";
 import { Image, ImageSourcePropType, StyleSheet, View } from "react-native";
 import { useQuery } from "convex/react";
-import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
 import { Repeat, Layers, Timer, Weight } from "lucide-react-native";
 import { api } from "@/convex/_generated/api";
