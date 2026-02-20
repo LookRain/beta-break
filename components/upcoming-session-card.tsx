@@ -23,6 +23,7 @@ type UpcomingSessionCardProps = {
   onToggle: () => void;
   onStart: () => void;
   onDone: () => void;
+  onViewDetails?: () => void;
   expandedContent?: React.ReactNode;
   startLabel?: string;
   doneLabel?: string;
@@ -49,6 +50,7 @@ export function UpcomingSessionCard({
   onToggle,
   onStart,
   onDone,
+  onViewDetails,
   expandedContent,
   startLabel = "Start",
   doneLabel = "Done",
@@ -64,6 +66,7 @@ export function UpcomingSessionCard({
       <SessionCard
         snapshot={session.snapshot}
         finalVariables={finalVariables}
+        onPressViewDetails={onViewDetails}
         statusBadge={
           <Box className="flex-row items-center gap-2">
             {showReadyBadge ? (

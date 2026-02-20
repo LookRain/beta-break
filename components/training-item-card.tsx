@@ -1,4 +1,5 @@
 import React from "react";
+import { Pressable } from "react-native";
 import { useQuery } from "convex/react";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
@@ -7,7 +8,7 @@ import { Bookmark, BookmarkCheck } from "lucide-react-native";
 import { api } from "@/convex/_generated/api";
 import { colors, cardShadow } from "@/lib/theme";
 
-type TrainingItemCardItem = {
+export type TrainingItemCardItem = {
   _id: string;
   title: string;
   description?: string;
@@ -21,6 +22,7 @@ type TrainingItemCardItem = {
     loadPreference?: "below_100" | "above_100";
   };
   difficulty: "beginner" | "intermediate" | "advanced";
+  equipment?: string[];
   variables: {
     weight?: number;
     reps?: number;
@@ -44,6 +46,7 @@ type Props = {
   secondaryLabel?: string;
   onToggleSave?: () => void;
   saveLabel?: string;
+  onPressCard?: () => void;
 };
 
 const difficultyColors: Record<string, { bg: string; text: string }> = {
@@ -60,6 +63,7 @@ export function TrainingItemCard({
   secondaryLabel,
   onToggleSave,
   saveLabel,
+  onPressCard,
 }: Props) {
   const profile = useQuery(api.profiles.getMyProfile);
   const isSaved = saveLabel === "Unsave";
@@ -101,7 +105,7 @@ export function TrainingItemCard({
   const legacyLoadLabel = weightPercent !== undefined ? `${weightPercent}kg` : null;
   const itemCategories = item.categories.slice(0, 3);
 
-  return (
+  const cardBody = (
     <Box
       className="rounded-2xl p-4 gap-3"
       style={{ ...cardShadow, backgroundColor: colors.bgCard }}
@@ -206,4 +210,14 @@ export function TrainingItemCard({
       ) : null}
     </Box>
   );
+
+  if (onPressCard) {
+    return (
+      <Pressable onPress={onPressCard} accessibilityRole="button">
+        {cardBody}
+      </Pressable>
+    );
+  }
+
+  return cardBody;
 }

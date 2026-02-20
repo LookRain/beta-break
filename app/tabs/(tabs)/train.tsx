@@ -24,8 +24,13 @@ import {
   ActionsheetItemText,
 } from "@/components/ui/actionsheet";
 import { Plus, CheckCircle2, Zap, ChevronDown, ChevronRight } from "lucide-react-native";
-import { SessionCard } from "@/components/session-card";
+import { SessionCard, type SessionSnapshot } from "@/components/session-card";
 import { UpcomingSessionCard } from "@/components/upcoming-session-card";
+import {
+  ExerciseDetailsSheet,
+  type ExerciseDetailItem,
+  type ExerciseDetailVariables,
+} from "@/components/exercise-details-sheet";
 import { PageHeader } from "@/components/page-header";
 import { colors, cardShadow, inputStyle, screenPadding } from "@/lib/theme";
 import {
@@ -216,6 +221,10 @@ export default function TrainScreen() {
   const [overrideSessionId, setOverrideSessionId] = React.useState<string | null>(null);
   const [overrideError, setOverrideError] = React.useState<string | null>(null);
   const [isSavingOverride, setIsSavingOverride] = React.useState(false);
+  const [selectedExercise, setSelectedExercise] = React.useState<{
+    exercise: ExerciseDetailItem;
+    finalVariables: ExerciseDetailVariables;
+  } | null>(null);
 
   React.useLayoutEffect(() => {
     navigation.setOptions({
@@ -399,6 +408,26 @@ export default function TrainScreen() {
     [resolveConcreteSessionId, router, showErrorToast],
   );
 
+  const openSessionDetails = React.useCallback(
+    (snapshot: SessionSnapshot, finalVariables: ExerciseDetailVariables) => {
+      setSelectedExercise({
+        exercise: {
+          title: snapshot.title,
+          description: snapshot.description,
+          categories: snapshot.categories,
+          tags: snapshot.tags,
+          trainingType: snapshot.trainingType,
+          hangDetails: snapshot.hangDetails,
+          difficulty: snapshot.difficulty,
+          equipment: snapshot.equipment,
+          variables: snapshot.variables,
+        },
+        finalVariables,
+      });
+    },
+    [],
+  );
+
   const handleCompleteSession = React.useCallback(
     async (session: any) => {
       try {
@@ -497,6 +526,12 @@ export default function TrainScreen() {
                 onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
                 onStart={() => void handleStartSession(session)}
                 onDone={() => void handleCompleteSession(session)}
+                onViewDetails={() =>
+                  openSessionDetails(
+                    session.snapshot,
+                    mergeVariables(session.snapshot.variables, session.overrides),
+                  )
+                }
                 expandedContent={
                   <Box className="flex-row flex-wrap gap-2">
                     <Button
@@ -565,6 +600,7 @@ export default function TrainScreen() {
                         <SessionCard
                           snapshot={session.snapshot}
                           finalVariables={final}
+                          onPressViewDetails={() => openSessionDetails(session.snapshot, final)}
                           statusBadge={
                             <Box className="flex-row items-center gap-2">
                               <Box
@@ -1211,6 +1247,14 @@ export default function TrainScreen() {
           </KeyboardAvoidingView>
         </ActionsheetContent>
       </Actionsheet>
+
+      <ExerciseDetailsSheet
+        isOpen={!!selectedExercise}
+        onClose={() => setSelectedExercise(null)}
+        exercise={selectedExercise?.exercise ?? null}
+        finalVariables={selectedExercise?.finalVariables}
+        bodyWeightKg={profile?.bodyWeightKg ?? undefined}
+      />
     </>
   );
 }
