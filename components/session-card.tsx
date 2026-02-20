@@ -11,8 +11,7 @@ import { colors, cardShadow } from "@/lib/theme";
 export type SessionSnapshot = {
   title: string;
   description?: string;
-  category: string;
-  categories?: string[];
+  categories: string[];
   tags: string[];
   trainingType?: "hang" | "weight_training" | "climbing" | "others";
   hangDetails?: {
@@ -76,13 +75,10 @@ function resolveImage(snapshot: SessionSnapshot): ImageSourcePropType | null {
   if (snapshot.trainingType && trainingImages[snapshot.trainingType]) {
     return trainingImages[snapshot.trainingType];
   }
-  for (const entry of snapshot.categories ?? []) {
+  for (const entry of snapshot.categories) {
     if (trainingImages[entry]) {
       return trainingImages[entry];
     }
-  }
-  if (snapshot.category && trainingImages[snapshot.category]) {
-    return trainingImages[snapshot.category];
   }
   return null;
 }

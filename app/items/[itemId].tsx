@@ -54,13 +54,7 @@ export default function ItemDetailScreen() {
       initialValues={{
         title: item.title,
         description: item.description,
-        category: item.category,
-        categories:
-          item.categories?.length && item.categories.some((entry: string) => !!entry.trim())
-            ? item.categories
-            : item.category
-              ? [item.category]
-              : [],
+        categories: item.categories ?? [],
         tags: item.tags,
         variables: item.variables,
         trainingType: item.trainingType,

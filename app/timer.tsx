@@ -759,10 +759,10 @@ export default function TimerScreen() {
     ? TRAINING_TYPE_LABEL[session.snapshot.trainingType]
     : "Not set";
   const currentExerciseCategory =
-    session?.snapshot.categories?.length &&
+    session?.snapshot.categories.length &&
     session.snapshot.categories.some((entry: string) => !!entry.trim())
       ? session.snapshot.categories.join(", ")
-      : session?.snapshot.category || "Not set";
+      : "Not set";
   const currentExerciseTags = session?.snapshot.tags.length
     ? session.snapshot.tags.join(", ")
     : "None";

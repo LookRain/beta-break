@@ -33,33 +33,30 @@ const difficultyValidator = v.union(
   v.literal("advanced"),
 );
 
-function normalizeCategories(input: { category?: string; categories?: string[] }): {
-  category: string;
-  categories: string[];
-} {
-  const categories = collectCategories(input);
-  if (categories.length === 0) {
+function normalizeCategories(categories: string[] | undefined): string[] {
+  const normalizedCategories = collectCategories(categories);
+  if (normalizedCategories.length === 0) {
     throw new Error("At least one category is required.");
   }
-  return {
-    category: categories[0],
-    categories,
-  };
+  return normalizedCategories;
 }
 
-function collectCategories(input: { category?: string; categories?: string[] }): string[] {
-  const merged = [...(input.categories ?? []), ...(input.category ? [input.category] : [])]
+function collectCategories(categories: string[] | undefined): string[] {
+  const merged = (categories ?? [])
     .map((entry) => entry.trim())
     .filter((entry) => entry.length > 0);
   return Array.from(new Set(merged));
+}
+
+function categoriesForSearch(itemCategories: string[] | undefined): string[] {
+  return collectCategories(itemCategories);
 }
 
 export const createDraft = mutationGeneric({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
-    category: v.optional(v.string()),
-    categories: v.optional(v.array(v.string())),
+    categories: v.array(v.string()),
     tags: v.array(v.string()),
     variables: variablesValidator,
     trainingType: v.optional(trainingTypeValidator),
@@ -72,17 +69,12 @@ export const createDraft = mutationGeneric({
     if (!ownerId) {
       throw new Error("Unauthorized");
     }
-    const normalizedCategories = normalizeCategories({
-      category: args.category,
-      categories: args.categories,
-    });
+    const normalizedCategories = normalizeCategories(args.categories);
     const now = Date.now();
     const itemId = await ctx.db.insert("trainingItems", {
       ...args,
-      category: normalizedCategories.category,
-      categories: normalizedCategories.categories,
+      categories: normalizedCategories,
       ownerId,
-      // Keep legacy fields populated for backwards compatibility.
       status: "published",
       publishedAt: now,
       createdAt: now,
@@ -97,8 +89,7 @@ export const updateDraft = mutationGeneric({
     itemId: v.id("trainingItems"),
     title: v.string(),
     description: v.optional(v.string()),
-    category: v.optional(v.string()),
-    categories: v.optional(v.array(v.string())),
+    categories: v.array(v.string()),
     tags: v.array(v.string()),
     variables: variablesValidator,
     trainingType: v.optional(trainingTypeValidator),
@@ -111,10 +102,7 @@ export const updateDraft = mutationGeneric({
     if (!ownerId) {
       throw new Error("Unauthorized");
     }
-    const normalizedCategories = normalizeCategories({
-      category: args.category,
-      categories: args.categories,
-    });
+    const normalizedCategories = normalizeCategories(args.categories);
     const item = await ctx.db.get(args.itemId);
 
     if (!item) {
@@ -127,8 +115,7 @@ export const updateDraft = mutationGeneric({
     await ctx.db.patch(args.itemId, {
       title: args.title,
       description: args.description,
-      category: normalizedCategories.category,
-      categories: normalizedCategories.categories,
+      categories: normalizedCategories,
       tags: args.tags,
       variables: args.variables,
       trainingType: args.trainingType,
@@ -230,7 +217,6 @@ export const listMyItems = queryGeneric({
 export const listPublishedItems = queryGeneric({
   args: {
     searchText: v.optional(v.string()),
-    category: v.optional(v.string()),
     categories: v.optional(v.array(v.string())),
     difficulty: v.optional(difficultyValidator),
     tags: v.optional(v.array(v.string())),
@@ -241,15 +227,13 @@ export const listPublishedItems = queryGeneric({
     const normalizedSearch = args.searchText?.trim().toLowerCase();
     const requestedTags = new Set((args.tags ?? []).map((tag) => tag.toLowerCase()));
     const requestedCategories = new Set(
-      [...(args.categories ?? []), ...(args.category ? [args.category] : [])]
+      (args.categories ?? [])
         .map((entry) => entry.toLowerCase().trim())
         .filter((entry) => entry.length > 0),
     );
     const filtered = items
       .filter((item) => {
-        const itemCategories = (
-          item.categories?.length ? item.categories : item.category ? [item.category] : []
-        )
+        const itemCategories = categoriesForSearch(item.categories)
           .map((entry: string) => entry.toLowerCase().trim())
           .filter((entry: string) => entry.length > 0);
         if (
@@ -270,9 +254,7 @@ export const listPublishedItems = queryGeneric({
           }
         }
         if (normalizedSearch) {
-          const searchableCategories = (
-            item.categories?.length ? item.categories : item.category ? [item.category] : []
-          ).join(" ");
+          const searchableCategories = categoriesForSearch(item.categories).join(" ");
           const haystack =
             `${item.title} ${item.description ?? ""} ${item.tags.join(" ")} ${searchableCategories}`.toLowerCase();
           if (!haystack.includes(normalizedSearch)) {

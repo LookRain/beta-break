@@ -680,7 +680,7 @@ export default function TrainScreen() {
                         overrideSession.snapshot.categories?.length &&
                         overrideSession.snapshot.categories.some((entry: string) => !!entry.trim())
                           ? overrideSession.snapshot.categories.join(", ")
-                          : overrideSession.snapshot.category || "Not set"
+                          : "Not set"
                       }
                       style={{ ...inputStyle, color: colors.textMuted }}
                     />
