@@ -37,10 +37,7 @@ function normalizeCategories(input: { category?: string; categories?: string[] }
   category: string;
   categories: string[];
 } {
-  const merged = [...(input.categories ?? []), ...(input.category ? [input.category] : [])]
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-  const categories = Array.from(new Set(merged));
+  const categories = collectCategories(input);
   if (categories.length === 0) {
     throw new Error("At least one category is required.");
   }
@@ -48,6 +45,13 @@ function normalizeCategories(input: { category?: string; categories?: string[] }
     category: categories[0],
     categories,
   };
+}
+
+function collectCategories(input: { category?: string; categories?: string[] }): string[] {
+  const merged = [...(input.categories ?? []), ...(input.category ? [input.category] : [])]
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return Array.from(new Set(merged));
 }
 
 export const createDraft = mutationGeneric({
