@@ -378,8 +378,14 @@ export const addRecurringSeries = mutationGeneric({
 
     const rule = await ctx.db.get(ruleId);
     if (rule) {
-      const requestedEnd = until ?? getNoEndCoverageWindow(now).windowEnd;
-      const coverage = getRuleCoverageWindow(rule, startDate, requestedEnd, now);
+      const noEndReferenceTimestamp = until === undefined ? Math.max(now, startDate) : now;
+      const requestedEnd = until ?? getNoEndCoverageWindow(noEndReferenceTimestamp).windowEnd;
+      const coverage = getRuleCoverageWindow(
+        rule,
+        startDate,
+        requestedEnd,
+        noEndReferenceTimestamp,
+      );
       if (coverage) {
         await ensureCoverageForRule(ctx, rule, coverage.effectiveStart, coverage.effectiveEnd);
       }
