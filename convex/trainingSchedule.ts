@@ -18,11 +18,6 @@ const recurrenceValidator = v.object({
   until: v.optional(v.number()),
 });
 
-// Open-ended recurring rules use a rolling window so they do not materialize
-// unbounded future sessions.
-const NO_END_COVERAGE_LOOKBACK_DAYS = 45;
-const NO_END_COVERAGE_HORIZON_DAYS = 60;
-
 function startOfDay(timestamp: number): number {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
@@ -48,48 +43,8 @@ function endOfMonth(timestamp: number): number {
   return date.getTime();
 }
 
-function getNoEndCoverageWindow(referenceTimestamp: number) {
-  const today = startOfDay(referenceTimestamp);
-  return {
-    windowStart: addDays(today, -NO_END_COVERAGE_LOOKBACK_DAYS),
-    windowEnd: addDays(today, NO_END_COVERAGE_HORIZON_DAYS),
-  };
-}
-
-function getRuleCoverageWindow(
-  rule: {
-    startDate: number;
-    recurrence: {
-      until?: number;
-    };
-  },
-  requestedStart: number,
-  requestedEnd: number,
-  referenceTimestamp: number,
-): { effectiveStart: number; effectiveEnd: number } | null {
-  const rangeStart = startOfDay(requestedStart);
-  const rangeEnd = startOfDay(requestedEnd);
-  if (rangeEnd < rangeStart) {
-    return null;
-  }
-
-  const ruleStart = startOfDay(rule.startDate);
-  const ruleUntil = rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
-
-  let effectiveStart = Math.max(ruleStart, rangeStart);
-  let effectiveEnd = ruleUntil !== undefined ? Math.min(ruleUntil, rangeEnd) : rangeEnd;
-
-  if (ruleUntil === undefined) {
-    const { windowStart, windowEnd } = getNoEndCoverageWindow(referenceTimestamp);
-    effectiveStart = Math.max(effectiveStart, windowStart);
-    effectiveEnd = Math.min(effectiveEnd, windowEnd);
-  }
-
-  if (effectiveEnd < effectiveStart) {
-    return null;
-  }
-
-  return { effectiveStart, effectiveEnd };
+function ruleDateKey(ruleId: string, scheduledFor: number): string {
+  return `${ruleId}:${scheduledFor}`;
 }
 
 function occursOnDate(
@@ -152,7 +107,12 @@ function occursOnDate(
   return currentDate.getDate() === startDate.getDate();
 }
 
-async function createSessionFromRule(ctx: any, rule: any, scheduledFor: number) {
+async function createSessionFromRule(
+  ctx: any,
+  rule: any,
+  scheduledFor: number,
+  options?: { canceledAt?: number },
+) {
   const now = Date.now();
   return await ctx.db.insert("trainingScheduleSessions", {
     ownerId: rule.ownerId,
@@ -161,6 +121,7 @@ async function createSessionFromRule(ctx: any, rule: any, scheduledFor: number) 
     recurrenceRuleId: rule._id,
     scheduledFor: startOfDay(scheduledFor),
     completedAt: undefined,
+    canceledAt: options?.canceledAt,
     snapshot: rule.snapshot,
     overrides: rule.defaultOverrides ?? {},
     notes: rule.notes,
@@ -169,39 +130,41 @@ async function createSessionFromRule(ctx: any, rule: any, scheduledFor: number) 
   });
 }
 
-async function ensureCoverageForRule(
-  ctx: any,
-  rule: any,
-  rangeStart: number,
-  rangeEnd: number,
-): Promise<number> {
-  const start = startOfDay(rangeStart);
-  const end = startOfDay(rangeEnd);
-  if (end < start) {
-    return 0;
-  }
-
-  const existing = await ctx.db
+async function getMaterializedRuleSessionForDate(ctx: any, ruleId: any, scheduledFor: number) {
+  return await ctx.db
     .query("trainingScheduleSessions")
     .withIndex("by_rule_scheduled_for", (q: any) =>
-      q.eq("recurrenceRuleId", rule._id).gte("scheduledFor", start).lte("scheduledFor", end),
+      q.eq("recurrenceRuleId", ruleId).eq("scheduledFor", startOfDay(scheduledFor)),
     )
-    .collect();
-  const existingDates = new Set(existing.map((session: any) => session.scheduledFor));
-  let generated = 0;
+    .first();
+}
 
-  for (let cursor = start; cursor <= end; cursor = addDays(cursor, 1)) {
-    if (!occursOnDate(rule, cursor)) {
-      continue;
+async function assertOwnedRecurringRule(ctx: any, userId: any, ruleId: any) {
+  const rule = await ctx.db.get(ruleId);
+  if (!rule) {
+    throw new Error("Recurring rule not found.");
+  }
+  if (rule.ownerId !== userId) {
+    throw new Error("Forbidden");
+  }
+  return rule;
+}
+
+async function ensureRuleDateCanceled(ctx: any, rule: any, scheduledFor: number) {
+  const targetDate = startOfDay(scheduledFor);
+  const existing = await getMaterializedRuleSessionForDate(ctx, rule._id, targetDate);
+  if (existing) {
+    if (!existing.canceledAt && !existing.completedAt) {
+      await ctx.db.patch(existing._id, {
+        canceledAt: Date.now(),
+        updatedAt: Date.now(),
+      });
     }
-    if (existingDates.has(cursor)) {
-      continue;
-    }
-    await createSessionFromRule(ctx, rule, cursor);
-    generated += 1;
+    return await ctx.db.get(existing._id);
   }
 
-  return generated;
+  const sessionId = await createSessionFromRule(ctx, rule, targetDate, { canceledAt: Date.now() });
+  return await ctx.db.get(sessionId);
 }
 
 async function assertItemCanBeScheduled(ctx: any, userId: any, itemId: any) {
@@ -259,6 +222,7 @@ export const addSession = mutationGeneric({
       recurrenceRuleId: undefined,
       scheduledFor: startOfDay(args.scheduledFor),
       completedAt: undefined,
+      canceledAt: undefined,
       snapshot: {
         title: item.title,
         description: item.description,
@@ -302,6 +266,7 @@ export const startImpromptuSession = mutationGeneric({
       recurrenceRuleId: undefined,
       scheduledFor: startOfDay(now),
       completedAt: undefined,
+      canceledAt: undefined,
       snapshot: {
         title: item.title,
         description: item.description,
@@ -376,21 +341,6 @@ export const addRecurringSeries = mutationGeneric({
       updatedAt: now,
     });
 
-    const rule = await ctx.db.get(ruleId);
-    if (rule) {
-      const noEndReferenceTimestamp = until === undefined ? Math.max(now, startDate) : now;
-      const requestedEnd = until ?? getNoEndCoverageWindow(noEndReferenceTimestamp).windowEnd;
-      const coverage = getRuleCoverageWindow(
-        rule,
-        startDate,
-        requestedEnd,
-        noEndReferenceTimestamp,
-      );
-      if (coverage) {
-        await ensureCoverageForRule(ctx, rule, coverage.effectiveStart, coverage.effectiveEnd);
-      }
-    }
-
     return await ctx.db.get(ruleId);
   },
 });
@@ -405,36 +355,88 @@ export const ensureRecurringCoverage = mutationGeneric({
     if (!userId) {
       throw new Error("Unauthorized");
     }
+    void args;
+    // Recurring sessions are computed at query time and are materialized lazily
+    // only when a user updates/completes/removes a concrete occurrence.
+    return { generated: 0 };
+  },
+});
 
-    const now = Date.now();
-    const rangeStart = startOfDay(args.rangeStart);
-    const rangeEnd = startOfDay(args.rangeEnd);
-    if (rangeEnd < rangeStart) {
-      return { generated: 0 };
+export const materializeRecurringOccurrence = mutationGeneric({
+  args: {
+    ruleId: v.id("trainingScheduleRecurrenceRules"),
+    scheduledFor: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
     }
 
-    const rules = await ctx.db
-      .query("trainingScheduleRecurrenceRules")
-      .withIndex("by_owner_active_start_date", (q: any) =>
-        q.eq("ownerId", userId).eq("active", true).lte("startDate", rangeEnd),
-      )
-      .collect();
+    const rule = await assertOwnedRecurringRule(ctx, userId, args.ruleId);
+    if (!rule.active) {
+      throw new Error("Recurring rule is inactive.");
+    }
 
-    let generated = 0;
-    for (const rule of rules) {
-      const coverage = getRuleCoverageWindow(rule, rangeStart, rangeEnd, now);
-      if (!coverage) {
-        continue;
+    const scheduledFor = startOfDay(args.scheduledFor);
+    if (!occursOnDate(rule, scheduledFor)) {
+      throw new Error("This occurrence is not part of the recurring rule.");
+    }
+
+    const existing = await getMaterializedRuleSessionForDate(ctx, rule._id, scheduledFor);
+    if (existing) {
+      if (existing.canceledAt) {
+        throw new Error("This occurrence was removed.");
       }
-      generated += await ensureCoverageForRule(
-        ctx,
-        rule,
-        coverage.effectiveStart,
-        coverage.effectiveEnd,
-      );
+      return existing;
     }
 
-    return { generated };
+    const sessionId = await createSessionFromRule(ctx, rule, scheduledFor);
+    return await ctx.db.get(sessionId);
+  },
+});
+
+export const cancelRecurringOccurrence = mutationGeneric({
+  args: {
+    ruleId: v.id("trainingScheduleRecurrenceRules"),
+    scheduledFor: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
+    const rule = await assertOwnedRecurringRule(ctx, userId, args.ruleId);
+    if (!rule.active) {
+      throw new Error("Recurring rule is inactive.");
+    }
+
+    const scheduledFor = startOfDay(args.scheduledFor);
+    const today = startOfDay(Date.now());
+    if (scheduledFor < today) {
+      throw new Error("Only upcoming sessions can be removed.");
+    }
+    if (!occursOnDate(rule, scheduledFor)) {
+      throw new Error("This occurrence is not part of the recurring rule.");
+    }
+
+    const existing = await getMaterializedRuleSessionForDate(ctx, rule._id, scheduledFor);
+    if (existing) {
+      if (existing.completedAt || existing.scheduledFor < today) {
+        throw new Error("Only upcoming sessions can be removed.");
+      }
+      if (!existing.canceledAt) {
+        await ctx.db.patch(existing._id, {
+          canceledAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      }
+      return { success: true };
+    }
+
+    await createSessionFromRule(ctx, rule, scheduledFor, { canceledAt: Date.now() });
+    return { success: true };
   },
 });
 
@@ -458,6 +460,9 @@ export const updateUpcomingSession = mutationGeneric({
     if (session.ownerId !== userId) {
       throw new Error("Forbidden");
     }
+    if (session.canceledAt) {
+      throw new Error("Removed sessions are immutable.");
+    }
     if (session.completedAt) {
       throw new Error("Completed sessions are immutable.");
     }
@@ -473,12 +478,20 @@ export const updateUpcomingSession = mutationGeneric({
       throw new Error("You can only move to today or future dates.");
     }
 
+    const previousScheduledFor = session.scheduledFor;
     await ctx.db.patch(args.sessionId, {
       scheduledFor: nextScheduledFor,
       overrides: args.overrides ?? session.overrides,
       notes: args.notes?.trim() || undefined,
       updatedAt: Date.now(),
     });
+
+    if (session.recurrenceRuleId && nextScheduledFor !== previousScheduledFor) {
+      const rule = await ctx.db.get(session.recurrenceRuleId);
+      if (rule && rule.ownerId === userId && rule.active && occursOnDate(rule, previousScheduledFor)) {
+        await ensureRuleDateCanceled(ctx, rule, previousScheduledFor);
+      }
+    }
 
     return await ctx.db.get(args.sessionId);
   },
@@ -501,10 +514,21 @@ export const removeUpcomingSession = mutationGeneric({
     if (session.ownerId !== userId) {
       throw new Error("Forbidden");
     }
+    if (session.canceledAt) {
+      return { success: true };
+    }
 
     const today = startOfDay(Date.now());
     if (session.completedAt || session.scheduledFor < today) {
       throw new Error("Only upcoming sessions can be removed.");
+    }
+
+    if (session.recurrenceRuleId) {
+      const rule = await ctx.db.get(session.recurrenceRuleId);
+      if (rule && rule.ownerId === userId && rule.active && occursOnDate(rule, session.scheduledFor)) {
+        await ensureRuleDateCanceled(ctx, rule, session.scheduledFor);
+        return { success: true };
+      }
     }
 
     await ctx.db.delete(args.sessionId);
@@ -529,6 +553,9 @@ export const completeSession = mutationGeneric({
     }
     if (session.ownerId !== userId) {
       throw new Error("Forbidden");
+    }
+    if (session.canceledAt) {
+      throw new Error("Session was removed.");
     }
     if (session.completedAt) {
       return session;
@@ -582,7 +609,7 @@ export const updateRecurringRuleFuture = mutationGeneric({
     const today = startOfDay(Date.now());
     await Promise.all(
       sessions.map(async (session: any) => {
-        if (session.completedAt || session.scheduledFor < today) {
+        if (session.canceledAt || session.completedAt || session.scheduledFor < today) {
           return;
         }
         await ctx.db.patch(session._id, {
@@ -678,13 +705,73 @@ export const listCalendarSessionsInRange = queryGeneric({
     const monthStart = startOfMonth(rangeStart);
     const monthEnd = endOfMonth(rangeEnd);
 
-    const sessions = await ctx.db
+    const materializedSessions = await ctx.db
       .query("trainingScheduleSessions")
       .withIndex("by_owner_scheduled_for", (q: any) =>
         q.eq("ownerId", userId).gte("scheduledFor", monthStart).lte("scheduledFor", monthEnd),
       )
       .order("asc")
       .collect();
+
+    const blockedRuleDates = new Set<string>();
+    const sessions: any[] = [];
+    for (const session of materializedSessions) {
+      if (session.recurrenceRuleId) {
+        blockedRuleDates.add(ruleDateKey(String(session.recurrenceRuleId), session.scheduledFor));
+      }
+      if (session.canceledAt) {
+        continue;
+      }
+      sessions.push({
+        ...session,
+        isVirtual: false,
+      });
+    }
+
+    const rules = await ctx.db
+      .query("trainingScheduleRecurrenceRules")
+      .withIndex("by_owner_active_start_date", (q: any) =>
+        q.eq("ownerId", userId).eq("active", true).lte("startDate", monthEnd),
+      )
+      .collect();
+
+    for (const rule of rules) {
+      const effectiveStart = Math.max(startOfDay(rule.startDate), monthStart);
+      const ruleUntil =
+        rule.recurrence.until !== undefined ? startOfDay(rule.recurrence.until) : undefined;
+      const effectiveEnd = ruleUntil !== undefined ? Math.min(ruleUntil, monthEnd) : monthEnd;
+      if (effectiveEnd < effectiveStart) {
+        continue;
+      }
+
+      for (let cursor = effectiveStart; cursor <= effectiveEnd; cursor = addDays(cursor, 1)) {
+        if (!occursOnDate(rule, cursor)) {
+          continue;
+        }
+        const key = ruleDateKey(String(rule._id), cursor);
+        if (blockedRuleDates.has(key)) {
+          continue;
+        }
+        sessions.push({
+          _id: `virtual:${rule._id}:${cursor}`,
+          ownerId: rule.ownerId,
+          trainingItemId: rule.trainingItemId,
+          isImpromptu: false,
+          recurrenceRuleId: rule._id,
+          scheduledFor: cursor,
+          completedAt: undefined,
+          canceledAt: undefined,
+          snapshot: rule.snapshot,
+          overrides: rule.defaultOverrides ?? {},
+          notes: rule.notes,
+          createdAt: rule.createdAt,
+          updatedAt: rule.updatedAt,
+          isVirtual: true,
+        });
+      }
+    }
+
+    sessions.sort((a, b) => a.scheduledFor - b.scheduledFor);
 
     return {
       sessions,
@@ -705,7 +792,7 @@ export const getSessionById = queryGeneric({
       throw new Error("Unauthorized");
     }
     const session = await ctx.db.get(args.sessionId);
-    if (!session || session.ownerId !== userId) {
+    if (!session || session.ownerId !== userId || session.canceledAt) {
       return null;
     }
     return session;

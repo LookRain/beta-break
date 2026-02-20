@@ -201,6 +201,9 @@ export default function TrainScreen() {
 
   const startImpromptuSession = useMutation(api.trainingSchedule.startImpromptuSession);
   const completeSession = useMutation(api.trainingSchedule.completeSession);
+  const materializeRecurringOccurrence = useMutation(
+    api.trainingSchedule.materializeRecurringOccurrence,
+  );
   const updateUpcomingSession = useMutation(api.trainingSchedule.updateUpcomingSession);
   const updateRecurringRuleFuture = useMutation(api.trainingSchedule.updateRecurringRuleFuture);
   const removeRecurringRuleFuture = useMutation(api.trainingSchedule.removeRecurringRuleFuture);
@@ -363,9 +366,43 @@ export default function TrainScreen() {
     [profile?.bodyWeightKg],
   );
 
-  const handleCompleteSession = React.useCallback(
-    async (sessionId: string) => {
+  const resolveConcreteSessionId = React.useCallback(
+    async (session: any): Promise<string> => {
+      if (!session.isVirtual) {
+        return session._id;
+      }
+      if (!session.recurrenceRuleId) {
+        throw new Error("Recurring session reference is missing.");
+      }
+      const materialized = await materializeRecurringOccurrence({
+        ruleId: session.recurrenceRuleId as never,
+        scheduledFor: session.scheduledFor,
+      });
+      if (!materialized?._id) {
+        throw new Error("Could not load session.");
+      }
+      return materialized._id;
+    },
+    [materializeRecurringOccurrence],
+  );
+
+  const handleStartSession = React.useCallback(
+    async (session: any) => {
       try {
+        const sessionId = await resolveConcreteSessionId(session);
+        router.push({ pathname: "/timer", params: { sessionId } });
+      } catch (startError) {
+        const message = showErrorMessage(startError, "Could not open session timer.");
+        showErrorToast("Could not open timer", message);
+      }
+    },
+    [resolveConcreteSessionId, router, showErrorToast],
+  );
+
+  const handleCompleteSession = React.useCallback(
+    async (session: any) => {
+      try {
+        const sessionId = await resolveConcreteSessionId(session);
         await completeSession({ sessionId: sessionId as never });
         showSuccessToast("Session marked complete.");
       } catch (completeError) {
@@ -373,7 +410,7 @@ export default function TrainScreen() {
         showErrorToast("Could not complete session", message);
       }
     },
-    [completeSession, showErrorToast, showSuccessToast],
+    [completeSession, resolveConcreteSessionId, showErrorToast, showSuccessToast],
   );
 
   if (sessionsResult === undefined || myItems === undefined || savedItems === undefined) {
@@ -458,10 +495,8 @@ export default function TrainScreen() {
                 session={session}
                 isExpanded={isExpanded}
                 onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
-                onStart={() =>
-                  router.push({ pathname: "/timer", params: { sessionId: session._id } })
-                }
-                onDone={() => void handleCompleteSession(session._id)}
+                onStart={() => void handleStartSession(session)}
+                onDone={() => void handleCompleteSession(session)}
                 expandedContent={
                   <Box className="flex-row flex-wrap gap-2">
                     <Button
@@ -1061,8 +1096,9 @@ export default function TrainScreen() {
                         }
                         setIsSavingOverride(true);
                         try {
+                          const sessionId = await resolveConcreteSessionId(overrideSession);
                           await updateUpcomingSession({
-                            sessionId: overrideSession._id,
+                            sessionId: sessionId as never,
                             overrides,
                           });
                           setOverrideSessionId(null);

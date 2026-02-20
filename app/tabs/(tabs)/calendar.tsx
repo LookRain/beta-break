@@ -10,7 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Box } from "@/components/ui/box";
 import { Text } from "@/components/ui/text";
@@ -205,7 +205,6 @@ export default function CalendarScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { success: showSuccessToast, error: showErrorToast } = useAppToast();
-  const { isAuthenticated } = useConvexAuth();
   const todayStr = localTodayString();
   const [selectedDate, setSelectedDate] = React.useState(todayStr);
   const [visibleMonth, setVisibleMonth] = React.useState(todayStr);
@@ -223,31 +222,17 @@ export default function CalendarScreen() {
     rangeEnd,
   });
 
-  const ensureRecurringCoverage = useMutation(api.trainingSchedule.ensureRecurringCoverage);
   const addSession = useMutation(api.trainingSchedule.addSession);
   const addRecurringSeries = useMutation(api.trainingSchedule.addRecurringSeries);
+  const materializeRecurringOccurrence = useMutation(
+    api.trainingSchedule.materializeRecurringOccurrence,
+  );
+  const cancelRecurringOccurrence = useMutation(api.trainingSchedule.cancelRecurringOccurrence);
   const updateUpcomingSession = useMutation(api.trainingSchedule.updateUpcomingSession);
   const updateRecurringRuleFuture = useMutation(api.trainingSchedule.updateRecurringRuleFuture);
   const removeRecurringRuleFuture = useMutation(api.trainingSchedule.removeRecurringRuleFuture);
   const removeUpcomingSession = useMutation(api.trainingSchedule.removeUpcomingSession);
   const completeSession = useMutation(api.trainingSchedule.completeSession);
-
-  React.useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-    const run = async () => {
-      try {
-        await ensureRecurringCoverage({ rangeStart, rangeEnd });
-      } catch (error) {
-        if (error instanceof Error && error.message.includes("Unauthorized")) {
-          return;
-        }
-        throw error;
-      }
-    };
-    void run();
-  }, [ensureRecurringCoverage, isAuthenticated, rangeStart, rangeEnd]);
 
   const [selectedItemId, setSelectedItemId] = React.useState<string>("");
   const [scheduleMode, setScheduleMode] = React.useState<"single" | "recurring">("single");
@@ -429,9 +414,43 @@ export default function CalendarScreen() {
     [profile?.bodyWeightKg],
   );
 
-  const handleCompleteSession = React.useCallback(
-    async (sessionId: string) => {
+  const resolveConcreteSessionId = React.useCallback(
+    async (session: any): Promise<string> => {
+      if (!session.isVirtual) {
+        return session._id;
+      }
+      if (!session.recurrenceRuleId) {
+        throw new Error("Recurring session reference is missing.");
+      }
+      const materialized = await materializeRecurringOccurrence({
+        ruleId: session.recurrenceRuleId as never,
+        scheduledFor: session.scheduledFor,
+      });
+      if (!materialized?._id) {
+        throw new Error("Could not load session.");
+      }
+      return materialized._id;
+    },
+    [materializeRecurringOccurrence],
+  );
+
+  const handleStartSession = React.useCallback(
+    async (session: any) => {
       try {
+        const sessionId = await resolveConcreteSessionId(session);
+        router.push({ pathname: "/timer", params: { sessionId } });
+      } catch (startError) {
+        const message = showErrorMessage(startError, "Could not open session timer.");
+        showErrorToast("Could not open timer", message);
+      }
+    },
+    [resolveConcreteSessionId, router, showErrorToast],
+  );
+
+  const handleCompleteSession = React.useCallback(
+    async (session: any) => {
+      try {
+        const sessionId = await resolveConcreteSessionId(session);
         await completeSession({ sessionId: sessionId as never });
         showSuccessToast("Session marked complete.");
       } catch (completeError) {
@@ -439,16 +458,17 @@ export default function CalendarScreen() {
         showErrorToast("Could not complete session", message);
       }
     },
-    [completeSession, showErrorToast, showSuccessToast],
+    [completeSession, resolveConcreteSessionId, showErrorToast, showSuccessToast],
   );
 
   const handleDelaySessionByWeek = React.useCallback(
-    async (sessionId: string, scheduledFor: number, overrides: SessionOverrides) => {
+    async (session: any) => {
       try {
+        const sessionId = await resolveConcreteSessionId(session);
         await updateUpcomingSession({
           sessionId: sessionId as never,
-          scheduledFor: addDays(scheduledFor, 7),
-          overrides,
+          scheduledFor: addDays(session.scheduledFor, 7),
+          overrides: session.overrides,
         });
         showSuccessToast("Session moved by 7 days.");
       } catch (delayError) {
@@ -456,20 +476,30 @@ export default function CalendarScreen() {
         showErrorToast("Could not move session", message);
       }
     },
-    [showErrorToast, showSuccessToast, updateUpcomingSession],
+    [resolveConcreteSessionId, showErrorToast, showSuccessToast, updateUpcomingSession],
   );
 
   const handleRemoveUpcomingSession = React.useCallback(
-    async (sessionId: string) => {
+    async (session: any) => {
       try {
-        await removeUpcomingSession({ sessionId: sessionId as never });
+        if (session.isVirtual) {
+          if (!session.recurrenceRuleId) {
+            throw new Error("Recurring session reference is missing.");
+          }
+          await cancelRecurringOccurrence({
+            ruleId: session.recurrenceRuleId as never,
+            scheduledFor: session.scheduledFor,
+          });
+        } else {
+          await removeUpcomingSession({ sessionId: session._id as never });
+        }
         showSuccessToast("Session removed.");
       } catch (removeError) {
         const message = showErrorMessage(removeError, "Could not remove session.");
         showErrorToast("Could not remove session", message);
       }
     },
-    [removeUpcomingSession, showErrorToast, showSuccessToast],
+    [cancelRecurringOccurrence, removeUpcomingSession, showErrorToast, showSuccessToast],
   );
 
   const handleRemoveRecurringFuture = React.useCallback(
@@ -516,7 +546,6 @@ export default function CalendarScreen() {
             until,
           },
         });
-        await ensureRecurringCoverage({ rangeStart, rangeEnd });
         showSuccessToast("Recurring series created.");
       }
       setScheduleSheetOpen(false);
@@ -632,10 +661,8 @@ export default function CalendarScreen() {
                   session={session}
                   isExpanded={isExpanded}
                   onToggle={() => setExpandedSessionId(isExpanded ? null : session._id)}
-                  onStart={() =>
-                    router.push({ pathname: "/timer", params: { sessionId: session._id } })
-                  }
-                  onDone={() => void handleCompleteSession(session._id)}
+                  onStart={() => void handleStartSession(session)}
+                  onDone={() => void handleCompleteSession(session)}
                   startLabel="Timer"
                   startIconSize={14}
                   startButtonTextClassName="font-semibold text-sm"
@@ -666,13 +693,7 @@ export default function CalendarScreen() {
                           size="sm"
                           variant="outline"
                           className="rounded-xl"
-                          onPress={() =>
-                            void handleDelaySessionByWeek(
-                              session._id,
-                              session.scheduledFor,
-                              session.overrides,
-                            )
-                          }
+                          onPress={() => void handleDelaySessionByWeek(session)}
                         >
                           <Clock size={12} color={colors.primary} strokeWidth={2} />
                           <ButtonText className="text-xs">+7d</ButtonText>
@@ -682,7 +703,7 @@ export default function CalendarScreen() {
                           action="negative"
                           variant="outline"
                           className="rounded-xl"
-                          onPress={() => void handleRemoveUpcomingSession(session._id)}
+                          onPress={() => void handleRemoveUpcomingSession(session)}
                         >
                           <Trash2 size={12} color={colors.error} strokeWidth={2} />
                           <ButtonText className="text-xs">
@@ -1422,8 +1443,9 @@ export default function CalendarScreen() {
                         }
                         setIsSavingOverride(true);
                         try {
+                          const sessionId = await resolveConcreteSessionId(overrideSession);
                           await updateUpcomingSession({
-                            sessionId: overrideSession._id,
+                            sessionId: sessionId as never,
                             overrides,
                           });
                           setOverrideSessionId(null);
